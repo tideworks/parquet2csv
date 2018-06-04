@@ -6,7 +6,7 @@
 -->
 <configuration scan="true" scanPeriod="30 seconds">
 
-  <property name="log_name" value="avro2parquet"/>
+  <property name="log_name" value="parquet2csv"/>
   <property name="log_folder" value="logs"/>
 
   <appender name="ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
