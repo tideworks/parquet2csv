@@ -56,6 +56,7 @@ public class DataLoad {
                   LOGGER.error("expected Arvo-schema file path after option {}", arg);
                   System.exit(1);
                 }
+                break;
               }
               default: {
                 LOGGER.error("unknown command line option: {} - ignoring", arg);
