@@ -5,6 +5,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.FileSystems;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 public class DataLoad {
@@ -26,11 +29,65 @@ public class DataLoad {
   }
 
   public static void main(String[] args) {
+    if (args.length <= 0) {
+      LOGGER.error("no Parquet input files were specified to be processed");
+      System.exit(1); // return non-zero status to indicate program failure
+    }
     try {
-      System.out.println("Hello world!");
+      Optional<File> schemaFile = Optional.empty();
+      final List<File> inputFiles = new ArrayList<>();
+      for(int i = 0; i < args.length; i++) {
+        String arg = args[i];
+        switch (arg.charAt(0)) {
+          case '-': {
+            final String option = arg.substring(1).toLowerCase();
+            switch (option) {
+              case "schema": {
+                final int n = i + 1;
+                if (n < args.length) {
+                  arg = args[i = n];
+                  final File filePath = new File(arg);
+                  if (!filePath.exists() || !filePath.isFile()) {
+                    LOGGER.error("\"{}\" does not exist or is not a valid file", arg);
+                    System.exit(1); // return non-zero status to indicate program failure
+                  }
+                  schemaFile = Optional.of(filePath);
+                } else {
+                  LOGGER.error("expected Arvo-schema file path after option {}", arg);
+                  System.exit(1);
+                }
+              }
+              default: {
+                LOGGER.error("unknown command line option: {} - ignoring", arg);
+              }
+            }
+            break;
+          }
+          default: {
+            // assume is a file path argument
+            final File filePath = new File(arg);
+            if (!filePath.exists() || !filePath.isFile()) {
+              LOGGER.error("\"{}\" does not exist or is not a valid file", arg);
+              System.exit(1); // return non-zero status to indicate program failure
+            }
+            inputFiles.add(filePath);
+          }
+        }
+      }
+
+      if (!schemaFile.isPresent()) {
+        LOGGER.error("no Arvo-schema file has been specified - cannot proceed");
+        System.exit(1);
+      }
+      if (inputFiles.isEmpty()) {
+        LOGGER.error("no Parquet input file have been specified for processing - cannot proceed");
+        System.exit(1);
+      }
+
     } catch (Throwable e) {
       LOGGER.error("program terminated due to exception:", e);
       System.exit(1); // return non-zero status to indicate program failure
     }
+    LOGGER.info("program completion successful");
   }
 }
