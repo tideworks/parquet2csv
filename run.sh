@@ -7,6 +7,7 @@ else
 fi
 
 export HOME=${PWD}
+export HADOOP_HOME=${PWD}
 dir=./target
 clspath=`find ${dir}/ -type f -name "*.jar"`
 clspath=`echo ${clspath}|tr ' ' $sep`

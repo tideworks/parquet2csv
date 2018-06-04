@@ -1,18 +1,32 @@
 package com.tideworks.data_load;
 
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.parquet.avro.AvroParquetReader;
+import org.apache.parquet.hadoop.ParquetReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
+import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import static com.tideworks.data_load.io.InputFile.nioPathToInputFile;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 
 public class DataLoad {
   private static final Logger LOGGER;
   private static final File progDirPathFile;
+  private static final String csvDelimiter = ",";
+  private static final String fileExtent = ".parquet";
 
   static File getProgDirPath() { return progDirPathFile; }
 
@@ -85,10 +99,72 @@ public class DataLoad {
         System.exit(1);
       }
 
+      final Schema arvoSchema = new Schema.Parser().setValidate(false).parse(schemaFile.get());
+      final List<String> fieldNames = arvoSchema.getFields().stream()
+              .map(field -> field.name().toUpperCase())
+              .collect(Collectors.toList());
+      final String hdrRow = String.join(csvDelimiter, fieldNames.toArray(new String[0]));
+      System.out.println(hdrRow);
+
+      for(final File inputFile : inputFiles) {
+        readParquetInputFile(inputFile);
+      }
     } catch (Throwable e) {
       LOGGER.error("program terminated due to exception:", e);
       System.exit(1); // return non-zero status to indicate program failure
     }
     LOGGER.info("program completion successful");
+  }
+
+  private static void readParquetInputFile(final File inputFile) throws IOException {
+    final String fileName = inputFile.getName();
+    if (!fileName.endsWith(fileExtent)) {
+      LOGGER.error("\"{}\" does not end in '{}' - thus is not assumed to be a Parquet file and is being skipped",
+              inputFile, fileExtent);
+      return;
+    }
+    final int endIndex = fileName.lastIndexOf(fileExtent);
+    final String fileNameBase = fileName.substring(0, endIndex);
+    final File csvOutputFile = new File(inputFile.getParent(), fileNameBase + ".csv");
+
+    final StringBuilder sb = new StringBuilder(1024);
+    final Charset utf8 = Charset.forName("UTF-8");
+    final int ioStreamBufSize = 16 * 1024;
+    final OutputStream csvOutputStream = Files.newOutputStream(csvOutputFile.toPath(), CREATE, TRUNCATE_EXISTING);
+    final Writer outputWriter = new BufferedWriter(new OutputStreamWriter(csvOutputStream, utf8), ioStreamBufSize);
+
+    List<Schema.Field> fields = null;
+    String[] fieldNames = new String[0];
+    try (final Writer csvOutputWriter = outputWriter;
+         final ParquetReader<GenericData.Record> reader = AvroParquetReader
+                 .<GenericData.Record>builder(nioPathToInputFile(inputFile.toPath()))
+                 .withConf(new Configuration())
+                 .build())
+    {
+      GenericData.Record record;
+      while ((record = reader.read()) != null) {
+        if (fields == null) {
+          fields = record.getSchema().getFields();
+          fieldNames = getFieldNames(fields);
+          final String hdrRow = String.join(csvDelimiter, fieldNames);
+          csvOutputWriter.write(hdrRow);
+          csvOutputWriter.write('\n');
+        }
+        assert fields != null;
+        sb.setLength(0);
+        for(final String fieldName : fieldNames) {
+          sb.append(record.get(fieldName)).append(csvDelimiter);
+        }
+        sb.deleteCharAt(sb.length() - 1).append('\n');
+        csvOutputWriter.append(sb);
+      }
+    }
+  }
+
+  private static String[] getFieldNames(List<Schema.Field> fields) {
+    final List<String> fieldNames = fields.stream()
+            .map(field -> field.name().toUpperCase())
+            .collect(Collectors.toList());
+    return fieldNames.toArray(new String[0]);
   }
 }
