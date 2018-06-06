@@ -26,6 +26,7 @@
     <parquet.hadoop.version>1.10.0</parquet.hadoop.version>
     <avro.version>1.8.2</avro.version>
     <parquet.avro.version>1.10.0</parquet.avro.version>
+    <byte_buddy.version>0.7.6</byte_buddy.version>
     <skip.tests>true</skip.tests>
   </properties>
 
@@ -185,6 +186,11 @@
       <groupId>org.apache.parquet</groupId>
       <artifactId>parquet-avro</artifactId>
       <version>${parquet.avro.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.bytebuddy</groupId>
+      <artifactId>byte-buddy</artifactId>
+      <version>${byte_buddy.version}</version>
     </dependency>
   </dependencies>
 </project>

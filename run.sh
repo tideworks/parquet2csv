@@ -12,5 +12,7 @@ dir=./target
 clspath=`find ${dir}/ -type f -name "*.jar"`
 clspath=`echo ${clspath}|tr ' ' $sep`
 cls=com/tideworks/data_load/DataLoad
+#clsldr=com.tideworks.data_load.DataLoad.CustomClassLoader
+clsldr=com.tideworks.data_load.CustomClassLoader
 
-java -ea -cp "${clspath}" ${cls} $*
+java -ea -cp "${clspath}" -Djava.system.class.loader=${clsldr} ${cls} $*
