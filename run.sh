@@ -15,4 +15,4 @@ cls=com/tideworks/data_load/DataLoad
 #clsldr=com.tideworks.data_load.DataLoad.CustomClassLoader
 clsldr=com.tideworks.data_load.CustomClassLoader
 
-java -ea -cp "${clspath}" -Djava.system.class.loader=${clsldr} ${cls} $*
+java -ea -cp "avro-classes${sep}${clspath}" -Djava.system.class.loader=${clsldr} ${cls} $*

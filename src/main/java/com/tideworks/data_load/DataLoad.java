@@ -3,9 +3,7 @@ package com.tideworks.data_load;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.ClassFileLocator;
 import net.bytebuddy.dynamic.DynamicType;
-import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.bind.annotation.Argument;
 import net.bytebuddy.pool.TypePool;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
@@ -17,8 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -28,6 +24,7 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static com.tideworks.data_load.CustomClassLoader.getClassRelativeFilePath;
 import static com.tideworks.data_load.io.InputFile.nioPathToInputFile;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
@@ -37,62 +34,66 @@ import static net.bytebuddy.matcher.ElementMatchers.isStatic;
 public class DataLoad {
   private static final Logger LOGGER;
   private static final File progDirPathFile;
+  private static final String customClsLoaderNotSetErrMsgFmt =
+          "need to specify the custom class loader to the JVM:%n\t-Djava.system.class.loader=%s";
   private static final String csvDelimiter = ",";
   private static final String fileExtent = ".parquet";
-  @SuppressWarnings("unused")
-  private static final ClassLoader avroSchemaClassLoader;
+  private static final File avroSchemaClassesDir;
 
   static File getProgDirPath() { return progDirPathFile; }
+  static File getAvroSchemaClassesDir() { return avroSchemaClassesDir; }
 
   static {
     final Predicate<String> existsAndIsDir = dirPath -> {
       final File dirPathFile = new File(dirPath);
       return dirPathFile.exists() && dirPathFile.isDirectory();
     };
-    ClassLoader clsLdr = null;
-    try {
-      clsLdr = redefineAvroSchemaClass();
-    } catch (ClassNotFoundException|IOException e) {
-      uncheckedExceptionThrow(e);
-    }
-    avroSchemaClassLoader = clsLdr;
     String homeDirPath = System.getenv("HOME"); // user home directory
     homeDirPath = homeDirPath != null && !homeDirPath.isEmpty() && existsAndIsDir.test(homeDirPath) ? homeDirPath : ".";
     progDirPathFile = FileSystems.getDefault().getPath(homeDirPath).toFile();
     LoggingLevel.setLoggingVerbosity(LoggingLevel.DEBUG);
     LOGGER = LoggingLevel.effectLoggingLevel(() -> LoggerFactory.getLogger(DataLoad.class.getSimpleName()));
+
+    avroSchemaClassesDir = new File(progDirPathFile, "avro-classes");
+    try {
+      redefineAvroSchemaClass(avroSchemaClassesDir);
+    } catch (ClassNotFoundException|IOException e) {
+      uncheckedExceptionThrow(e);
+    }
   }
 
   public static final class AvroSchemaInterceptor {
     @SuppressWarnings("unused")
     public static String validateName(String name) {
       System.out.println("intercept validateName() called");
-      System.exit(1);
+//      System.exit(1);
       return name;
     }
   }
 
-  private static ClassLoader redefineAvroSchemaClass() throws ClassNotFoundException, IOException {
-    final CustomClassLoader sysClassLoader = (CustomClassLoader) ClassLoader.getSystemClassLoader();
+  private static void redefineAvroSchemaClass(File avroSchemaClassesDirPrm) throws ClassNotFoundException, IOException {
+    final String avroSchemaClassPckgName = "org.apache.avro";
+    final String avroSchemaClassName = avroSchemaClassPckgName + ".Schema";
+    final String relativeFilePath = getClassRelativeFilePath(avroSchemaClassPckgName, avroSchemaClassName);
+    final File clsFile = new File(avroSchemaClassesDirPrm, relativeFilePath);
+    if (clsFile.exists() && clsFile.isFile()) {
+      System.err.printf("DEBUG: class file already exist:%n\t\"%s\"%n", clsFile);
+      return;
+    }
+
+    final ClassLoader sysClassLoader = ClassLoader.getSystemClassLoader();
+    if (!(sysClassLoader instanceof CustomClassLoader)) {
+      throw new AssertionError(String.format(customClsLoaderNotSetErrMsgFmt, ClassLoader.class.getName()));
+    }
     final Class<?>[] methArgTypesMatch = { String.class };
     final TypePool pool = TypePool.Default.ofClassPath();
     final DynamicType.Unloaded<?> avroSchemaClsUnloaded = new ByteBuddy()
-            .rebase(pool.describe("org.apache.avro.Schema").resolve(), ClassFileLocator.ForClassLoader.ofClassPath())
+            .rebase(pool.describe(avroSchemaClassName).resolve(), ClassFileLocator.ForClassLoader.ofClassPath())
             .method(named("validateName").and(returns(String.class)).and(takesArguments(methArgTypesMatch))
                     .and(isPrivate()).and(isStatic()))
             .intercept(MethodDelegation.to(AvroSchemaInterceptor.class))
             .make();
-    final DynamicType.Loaded<?> loaded = avroSchemaClsUnloaded.load(sysClassLoader,
-                                                                    ClassLoadingStrategy.Default.CHILD_FIRST);
-    loaded.saveIn(new File("AvroSchemaClass.class"));
-    final Class<?> avroSchemaCls = loaded.getLoaded();
-    final ClassLoader avroSchemaClassLoader = avroSchemaCls.getClassLoader();
-    sysClassLoader.setDelegatingClassLoader(avroSchemaClassLoader);
-    sysClassLoader.cls = avroSchemaCls;
-    Thread.currentThread().setContextClassLoader(sysClassLoader);
-    assert ClassLoader.getSystemClassLoader() == sysClassLoader;
-    assert ClassLoader.getSystemClassLoader().loadClass("org.apache.avro.Schema") == avroSchemaCls;
-    return avroSchemaClassLoader;
+    avroSchemaClsUnloaded.saveIn(avroSchemaClassesDirPrm);
   }
 
   public static void main(String[] args) {
