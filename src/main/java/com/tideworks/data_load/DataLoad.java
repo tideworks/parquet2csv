@@ -1,10 +1,5 @@
 package com.tideworks.data_load;
 
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.dynamic.ClassFileLocator;
-import net.bytebuddy.dynamic.DynamicType;
-import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.pool.TypePool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,20 +10,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-import static com.tideworks.data_load.CustomClassLoader.getClassRelativeFilePath;
-import static net.bytebuddy.matcher.ElementMatchers.*;
-import static net.bytebuddy.matcher.ElementMatchers.isStatic;
-
 public class DataLoad {
   private static final Logger log;
-  private static final File progDirPathFile;
-  private static final String customClsLoaderNotSetErrMsgFmt =
-          "need to specify the custom class loader to the JVM:%n\t-Djava.system.class.loader=%s";
   private static final String avroSchemaClassesSubDir = "avro-classes";
-  private static final File avroSchemaClassesDir;
+  private static final File progDirPathFile;
 
   static File getProgDirPath() { return progDirPathFile; }
-  static File getAvroSchemaClassesDir() { return avroSchemaClassesDir; }
 
   static {
     final Predicate<String> existsAndIsDir = dirPath -> {
@@ -41,46 +28,15 @@ public class DataLoad {
     LoggingLevel.setLoggingVerbosity(LoggingLevel.DEBUG);
     log = LoggingLevel.effectLoggingLevel(() -> LoggerFactory.getLogger(DataLoad.class.getSimpleName()));
 
-    avroSchemaClassesDir = new File(progDirPathFile, avroSchemaClassesSubDir);
     try {
-      redefineAvroSchemaClass(avroSchemaClassesDir);
+      ValidateSchema.redefineAvroSchemaClass(new File(progDirPathFile, avroSchemaClassesSubDir));
     } catch (ClassNotFoundException|IOException e) {
-      ParquetToCsv.uncheckedExceptionThrow(e);
+      uncheckedExceptionThrow(e);
     }
   }
 
-  public static final class AvroSchemaInterceptor {
-    @SuppressWarnings("unused")
-    public static String validateName(String name) {
-      System.out.println("intercept validateName() called");
-      return name;
-    }
-  }
-
-  private static void redefineAvroSchemaClass(File avroSchemaClassesDirPrm) throws ClassNotFoundException, IOException {
-    final String avroSchemaClassPckgName = "org.apache.avro";
-    final String avroSchemaClassName = avroSchemaClassPckgName + ".Schema";
-    final String relativeFilePath = getClassRelativeFilePath(avroSchemaClassPckgName, avroSchemaClassName);
-    final File clsFile = new File(avroSchemaClassesDirPrm, relativeFilePath);
-    if (clsFile.exists() && clsFile.isFile()) {
-      System.err.printf("DEBUG: class file already exist:%n\t\"%s\"%n", clsFile);
-      return;
-    }
-
-    final ClassLoader sysClassLoader = ClassLoader.getSystemClassLoader();
-    if (!(sysClassLoader instanceof CustomClassLoader)) {
-      throw new AssertionError(String.format(customClsLoaderNotSetErrMsgFmt, ClassLoader.class.getName()));
-    }
-    final Class<?>[] methArgTypesMatch = { String.class };
-    final TypePool pool = TypePool.Default.ofClassPath();
-    final DynamicType.Unloaded<?> avroSchemaClsUnloaded = new ByteBuddy()
-            .rebase(pool.describe(avroSchemaClassName).resolve(), ClassFileLocator.ForClassLoader.ofClassPath())
-            .method(named("validateName").and(returns(String.class)).and(takesArguments(methArgTypesMatch))
-                    .and(isPrivate()).and(isStatic()))
-            .intercept(MethodDelegation.to(AvroSchemaInterceptor.class))
-            .make();
-    avroSchemaClsUnloaded.saveIn(avroSchemaClassesDirPrm);
-  }
+  @SuppressWarnings({"unchecked", "UnusedReturnValue"})
+  private static <T extends Throwable, R> R uncheckedExceptionThrow(Throwable t) throws T { throw (T) t; }
 
   public static void main(String[] args) {
     if (args.length <= 0) {
@@ -131,17 +87,21 @@ public class DataLoad {
       }
 
       if (!schemaFileOptn.isPresent()) {
-        log.error("no Arvo-schema file has been specified - cannot proceed");
-        System.exit(1);
+        log.warn("no Arvo-schema file has been specified");
       }
-      if (inputFiles.isEmpty()) {
+      if (inputFiles.isEmpty() && !schemaFileOptn.isPresent()) {
         log.error("no Parquet input file have been specified for processing - cannot proceed");
         System.exit(1);
       }
 
-      ValidateSchema.validate(schemaFileOptn.get());
+      if (schemaFileOptn.isPresent()) {
+        final File avroSchemaFile = schemaFileOptn.get();
+        ValidateSchema.validate(avroSchemaFile);
+        log.info("Avro schema file \"{}\" validated successfully", avroSchemaFile);
+      }
 
       for(final File inputFile : inputFiles) {
+        log.info("processing Parquet input file: \"{}\"", inputFile);
         ParquetToCsv.processToOutput(inputFile);
       }
     } catch (Throwable e) {

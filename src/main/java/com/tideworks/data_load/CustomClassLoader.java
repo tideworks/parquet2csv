@@ -4,7 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
-import static com.tideworks.data_load.DataLoad.getAvroSchemaClassesDir;
+import static com.tideworks.data_load.ValidateSchema.getAvroSchemaClassesDir;
+import static com.tideworks.data_load.ValidateSchema.getClassRelativeFilePath;
 
 public final class CustomClassLoader extends ClassLoader {
   private static final String failedLoadingErrMsgFmt = "failure custom loading class %s";
@@ -47,11 +48,4 @@ public final class CustomClassLoader extends ClassLoader {
     return super.loadClass(name);
   }
 
-  static String getClassRelativeFilePath(String filterByPckgName, String name) {
-    final String dotClsStr = ".class";
-    final StringBuilder sb = new StringBuilder(name.length() + dotClsStr.length())
-            .append(filterByPckgName.replace('.', File.separatorChar)).append(File.separatorChar)
-            .append(name.substring(filterByPckgName.length() + 1)).append(dotClsStr);
-    return sb.toString();
-  }
 }

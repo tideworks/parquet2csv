@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
@@ -21,14 +20,16 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 
 class ParquetToCsv {
+  private static final String csvDelimiter = ",";
   private static final Logger log = LoggerFactory.getLogger(ParquetToCsv.class.getSimpleName());
   private static final String fileExtent = ".parquet";
+  private static final String notParquetFileErrMsgFmt =
+          "\"{}\" does not end in '{}' - thus is not assumed to be a Parquet file and is being skipped";
 
   static void processToOutput(final File inputFile) throws IOException {
     final String fileName = inputFile.getName();
     if (!fileName.endsWith(fileExtent)) {
-      log.error("\"{}\" does not end in '{}' - thus is not assumed to be a Parquet file and is being skipped",
-              inputFile, fileExtent);
+      log.error(notParquetFileErrMsgFmt, inputFile, fileExtent);
       return;
     }
     final int endIndex = fileName.lastIndexOf(fileExtent);
@@ -41,10 +42,6 @@ class ParquetToCsv {
     final OutputStream csvOutputStream = Files.newOutputStream(csvOutputFile.toPath(), CREATE, TRUNCATE_EXISTING);
     final Writer outputWriter = new BufferedWriterExt(new OutputStreamWriter(csvOutputStream, utf8), ioStreamBufSize);
 
-    final ThreadLocal<Boolean> validateNames = getFieldValue(Schema.class, null, "validateNames");
-    //noinspection ConstantConditions
-    validateNames.set(false);
-
     List<Schema.Field> fields = null;
     String[] fieldNames = new String[0];
     try (final Writer csvOutputWriter = outputWriter;
@@ -53,20 +50,19 @@ class ParquetToCsv {
                  .withConf(new Configuration())
                  .build())
     {
-      validateNames.set(false);
       GenericData.Record record;
       while ((record = reader.read()) != null) {
         if (fields == null) {
           fields = record.getSchema().getFields();
           fieldNames = getFieldNames(fields);
-          final String hdrRow = String.join(ValidateSchema.csvDelimiter, fieldNames);
+          final String hdrRow = String.join(csvDelimiter, fieldNames);
           csvOutputWriter.write(hdrRow);
           csvOutputWriter.write('\n');
         }
         assert fields != null;
         sb.setLength(0);
         for(final String fieldName : fieldNames) {
-          sb.append(record.get(fieldName)).append(ValidateSchema.csvDelimiter);
+          sb.append(record.get(fieldName)).append(csvDelimiter);
         }
         sb.deleteCharAt(sb.length() - 1).append('\n');
         csvOutputWriter.append(sb);
@@ -80,23 +76,5 @@ class ParquetToCsv {
             .map(field -> field.name().toUpperCase())
             .collect(Collectors.toList());
     return fieldNames.toArray(new String[0]);
-  }
-
-  @SuppressWarnings({"unchecked", "UnusedReturnValue"})
-  static <T extends Throwable, R> R uncheckedExceptionThrow(Throwable t) throws T { throw (T) t; }
-
-  @SuppressWarnings({"UnusedReturnValue", "SameParameterValue"})
-  private static <T, R> R getFieldValue(final Class<?> cls, final T obj, final String fieldName) {
-    try {
-      final Field field = cls.getDeclaredField(fieldName);
-      assert field != null;
-      field.setAccessible(true);
-      @SuppressWarnings("unchecked")
-      final R rtnObj = (R) (java.lang.reflect.Modifier.isStatic(field.getModifiers()) ? field.get(null) : field.get(obj));
-      return rtnObj;
-    } catch (NoSuchFieldException|SecurityException|IllegalArgumentException|IllegalAccessException e) {
-      uncheckedExceptionThrow(e);
-    }
-    return null; // will never reach here - hushes compiler
   }
 }
