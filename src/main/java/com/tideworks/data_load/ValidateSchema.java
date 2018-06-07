@@ -14,23 +14,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.tideworks.data_load.CustomClassLoader.getClassRelativeFilePath;
 import static net.bytebuddy.matcher.ElementMatchers.*;
 
 class ValidateSchema {
   private static final Logger log = LoggerFactory.getLogger(ValidateSchema.class.getSimpleName());
   private static final String csvDelimiter = ",";
-  private static final String uninitializedVariableErrMsg =
-          "unexpected error - static variable avroSchemaClassesDir not initialized";
   private static final String customClsLoaderNotSetErrMsgFmt =
           "need to specify the custom class loader to the JVM:%n\t-Djava.system.class.loader=%s";
-  private static File avroSchemaClassesDir;
-
-  static File getAvroSchemaClassesDir() {
-    if (avroSchemaClassesDir == null) {
-      throw new AssertionError(uninitializedVariableErrMsg);
-    }
-    return avroSchemaClassesDir;
-  }
 
   static void validate(final File schemaFile) throws IOException {
     final Schema arvoSchema = new Schema.Parser().setValidate(true).parse(schemaFile);
@@ -50,23 +41,14 @@ class ValidateSchema {
     }
   }
 
-  static String getClassRelativeFilePath(final String pckgName, final String name) {
-    final String dotClsStr = ".class";
-    //noinspection StringBufferReplaceableByString
-    return new StringBuilder(name.length() + dotClsStr.length())
-            .append(pckgName.replace('.', File.separatorChar)).append(File.separatorChar)
-            .append(name.substring(pckgName.length() + 1)).append(dotClsStr)
-            .toString();
-  }
-
   static void redefineAvroSchemaClass(File avroSchemaClassesDirPrm) throws ClassNotFoundException, IOException {
-    avroSchemaClassesDir = avroSchemaClassesDirPrm;
+    CustomClassLoader.setAvroSchemaClassesDir(avroSchemaClassesDirPrm);
     final String avroSchemaClassPckgName = "org.apache.avro";
     final String avroSchemaClassName = avroSchemaClassPckgName + ".Schema";
     final String relativeFilePath = getClassRelativeFilePath(avroSchemaClassPckgName, avroSchemaClassName);
     final File clsFile = new File(avroSchemaClassesDirPrm, relativeFilePath);
     if (clsFile.exists() && clsFile.isFile()) {
-      log.debug("class file already exist:%n\t\"%s\"%n", clsFile);
+      System.err.printf("DEBUG: class file already exist:%n\t\"%s\"%n", clsFile);
       return;
     }
 
