@@ -76,7 +76,6 @@ class ParquetToCsv {
           csvOutputWriter.write(String.join(csvDelimiter, fieldNames));
           csvOutputWriter.write('\n');
         }
-        assert fields != null;
         rowStrBuf.setLength(0);
         int i = 0;
         for(final String fieldName : fieldNames) {
@@ -131,12 +130,52 @@ class ParquetToCsv {
         }
       }
       if (logicalType == null) {
-        if ((fieldType == Schema.Type.STRING || fieldType == Schema.Type.ENUM) && fieldValue != null) {
-          rowStrBuf.append('\'').append(fieldValue).append('\'');
-        } else {
-          rowStrBuf.append(fieldValue);
+        if (fieldType != null) {
+          switch (fieldType) {
+            case RECORD:
+              throw new UnsupportedOperationException();
+            case ARRAY:
+              throw new UnsupportedOperationException();
+            case MAP:
+              throw new UnsupportedOperationException();
+            case UNION:
+              throw new UnsupportedOperationException();
+            case FIXED:
+              throw new UnsupportedOperationException();
+            case BYTES:
+              throw new UnsupportedOperationException();
+            default: {
+              if (fieldValue != null) {
+                switch (fieldType) {
+                  case ENUM:
+                  case STRING:
+                    return rowStrBuf.append('\'').append(fieldValue).append('\'');
+                  case INT:
+                    break;
+                  case LONG:
+                    break;
+                  case FLOAT: {
+                    if (fieldValue instanceof Float) {
+                      return rowStrBuf.append(new BigDecimal((Float) fieldValue));
+                    } else if (fieldValue instanceof Double) {
+                      return rowStrBuf.append(new BigDecimal((Double) fieldValue));
+                    }
+                    break;
+                  }
+                  case DOUBLE:
+                    if (fieldValue instanceof Double) {
+                      return rowStrBuf.append(new BigDecimal((Double) fieldValue));
+                    }
+                  case BOOLEAN:
+                    break;
+                  case NULL:
+                    break;
+                }
+              }
+            }
+          }
         }
-        return rowStrBuf;
+        return rowStrBuf.append(fieldValue);
       }
     }
     if (fieldValue == null) {
