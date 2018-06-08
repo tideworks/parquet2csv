@@ -1,3 +1,9 @@
+/* ParquetToCsv.java
+ *
+ * Copyright June 2018 Tideworks Technology
+ * Author: Roger D. Voss
+ * MIT License
+ */
 package com.tideworks.data_load;
 
 import com.tideworks.data_load.io.BufferedWriterExt;

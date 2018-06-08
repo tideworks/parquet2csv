@@ -1,4 +1,4 @@
-/** InputFile.java
+/* InputFile.java
  *
  * Copyright May 2018 Tideworks Technology
  * Author: Roger D. Voss

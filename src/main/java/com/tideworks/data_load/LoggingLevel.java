@@ -1,4 +1,4 @@
-/** LoggingLevel.java
+/* LoggingLevel.java
  *
  * Copyright May 2018 Tideworks Technology
  * Author: Roger D. Voss

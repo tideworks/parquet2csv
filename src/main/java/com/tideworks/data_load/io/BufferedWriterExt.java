@@ -1,3 +1,9 @@
+/* BufferedWriterExt.java
+ *
+ * Copyright June 2018 Tideworks Technology
+ * Author: Roger D. Voss
+ * MIT License
+ */
 package com.tideworks.data_load.io;
 
 import java.io.BufferedWriter;
