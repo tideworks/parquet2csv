@@ -1,3 +1,9 @@
+/* ByteCodePatchingAnnotationProcessor.java
+ *
+ * Copyright July 2018 Tideworks Technology
+ * Author: Roger D. Voss
+ * MIT License
+ */
 package com.tideworks.annotation;
 
 import com.tideworks.data_load.ValidateAvroSchema;

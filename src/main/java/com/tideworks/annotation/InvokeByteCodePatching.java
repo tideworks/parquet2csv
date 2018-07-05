@@ -1,3 +1,9 @@
+/* InvokeByteCodePatching.java
+ *
+ * Copyright July 2018 Tideworks Technology
+ * Author: Roger D. Voss
+ * MIT License
+ */
 package com.tideworks.annotation;
 
 import java.lang.annotation.Retention;
