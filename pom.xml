@@ -60,7 +60,7 @@
               </systemProperties>
               <processors>
                 <!-- list of processors to use -->
-                <processor>com.tideworks.data_load.ByteCodePatchingAnnotationProcessor</processor>
+                <processor>com.tideworks.annotation.ByteCodePatchingAnnotationProcessor</processor>
               </processors>
             </configuration>
           </execution>
@@ -87,7 +87,7 @@
             <inherited>true</inherited>
             <configuration>
               <includes>
-                <include>com/tideworks/data_load/ByteCodePatchingAnnotationProcessor.java</include>
+                <include>com/tideworks/annotation/ByteCodePatchingAnnotationProcessor.java</include>
               </includes>
             </configuration>
           </execution>
@@ -96,7 +96,7 @@
             <inherited>true</inherited>
             <configuration>
               <excludes>
-                <exclude>com/tideworks/data_load/ByteCodePatchingAnnotationProcessor.java</exclude>
+                <exclude>com/tideworks/annotation/ByteCodePatchingAnnotationProcessor.java</exclude>
               </excludes>
             </configuration>
           </execution>
@@ -116,7 +116,7 @@
             </manifest>
           </archive>
           <excludes>
-            <exclude>com/tideworks/data_load/ByteCodePatchingAnnotationProcessor.class</exclude>
+            <exclude>com/tideworks/annotation/ByteCodePatchingAnnotationProcessor.class</exclude>
           </excludes>
         </configuration>
       </plugin>

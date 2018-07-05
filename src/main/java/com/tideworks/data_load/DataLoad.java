@@ -6,6 +6,7 @@
  */
 package com.tideworks.data_load;
 
+import com.tideworks.annotation.InvokeByteCodePatching;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

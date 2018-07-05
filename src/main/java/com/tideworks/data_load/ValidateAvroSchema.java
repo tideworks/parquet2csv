@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 
 import static net.bytebuddy.matcher.ElementMatchers.*;
 
-class ValidateAvroSchema {
+public final class ValidateAvroSchema {
   private static final Logger log = LoggerFactory.getLogger(ValidateAvroSchema.class.getSimpleName());
   private static final String csvDelimiter = ",";
 
@@ -43,7 +43,7 @@ class ValidateAvroSchema {
     }
   }
 
-  static void bytecodePatchAvroSchemaClass(final File avroSchemaClassesDir) throws ClassNotFoundException, IOException {
+  public static void bytecodePatchAvroSchemaClass(final File avroSchemaClassesDir) throws ClassNotFoundException, IOException {
     final String avroSchemaClassPackageName = "org.apache.avro";
     final String avroSchemaFullClassName = avroSchemaClassPackageName + ".Schema";
     final String relativeFilePath = getClassRelativeFilePath(avroSchemaClassPackageName, avroSchemaFullClassName);

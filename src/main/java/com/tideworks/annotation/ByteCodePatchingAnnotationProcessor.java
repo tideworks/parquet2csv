@@ -1,4 +1,6 @@
-package com.tideworks.data_load;
+package com.tideworks.annotation;
+
+import com.tideworks.data_load.ValidateAvroSchema;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
@@ -13,7 +15,7 @@ import java.io.IOException;
 import java.lang.annotation.AnnotationFormatError;
 import java.util.Set;
 
-@SupportedAnnotationTypes("com.tideworks.data_load.InvokeByteCodePatching")
+@SupportedAnnotationTypes("com.tideworks.annotation.InvokeByteCodePatching")
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class ByteCodePatchingAnnotationProcessor extends AbstractProcessor {
   @Override
