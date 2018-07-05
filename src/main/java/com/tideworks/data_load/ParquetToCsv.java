@@ -17,7 +17,6 @@ import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -221,7 +220,7 @@ class ParquetToCsv {
     }
     @Override
     public Date parse(String source, ParsePosition pos) {
-      throw new NotImplementedException();
+      throw new UnsupportedOperationException();
     }
   }
 }

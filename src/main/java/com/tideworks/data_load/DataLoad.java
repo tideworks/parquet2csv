@@ -16,9 +16,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+@InvokeByteCodePatching
 public class DataLoad {
   private static final Logger log;
-  private static final String avroSchemaClassesSubDir = "avro-classes";
   private static final File progDirPathFile;
 
   static File getProgDirPath() { return progDirPathFile; }
@@ -33,16 +33,7 @@ public class DataLoad {
     progDirPathFile = FileSystems.getDefault().getPath(homeDirPath).toFile();
     LoggingLevel.setLoggingVerbosity(LoggingLevel.DEBUG);
     log = LoggingLevel.effectLoggingLevel(() -> LoggerFactory.getLogger(DataLoad.class.getSimpleName()));
-
-    try {
-      ValidateSchema.redefineAvroSchemaClass(new File(progDirPathFile, avroSchemaClassesSubDir));
-    } catch (ClassNotFoundException|IOException e) {
-      uncheckedExceptionThrow(e);
-    }
   }
-
-  @SuppressWarnings({"unchecked", "UnusedReturnValue"})
-  private static <T extends Throwable, R> R uncheckedExceptionThrow(Throwable t) throws T { throw (T) t; }
 
   public static void main(String[] args) {
     if (args.length <= 0) {
