@@ -41,7 +41,7 @@ public class ByteCodePatchingAnnotationProcessor extends AbstractProcessor {
 
     try {
       final String classesBldDir = System.getProperty("maven.build.classes.dir", "target/classes");
-      ValidateSchema.redefineAvroSchemaClass(new File(classesBldDir));
+      ValidateAvroSchema.bytecodePatchAvroSchemaClass(new File(classesBldDir));
     } catch (ClassNotFoundException|IOException e) {
       uncheckedExceptionThrow(e);
     }

@@ -21,8 +21,8 @@ import java.util.stream.Collectors;
 
 import static net.bytebuddy.matcher.ElementMatchers.*;
 
-class ValidateSchema {
-  private static final Logger log = LoggerFactory.getLogger(ValidateSchema.class.getSimpleName());
+class ValidateAvroSchema {
+  private static final Logger log = LoggerFactory.getLogger(ValidateAvroSchema.class.getSimpleName());
   private static final String csvDelimiter = ",";
 
   static void validate(final File schemaFile) throws IOException {
@@ -43,20 +43,20 @@ class ValidateSchema {
     }
   }
 
-  static void redefineAvroSchemaClass(File avroSchemaClassesDirPrm) throws ClassNotFoundException, IOException {
-    final String avroSchemaClassPckgName = "org.apache.avro";
-    final String avroSchemaClassName = avroSchemaClassPckgName + ".Schema";
-    final String relativeFilePath = getClassRelativeFilePath(avroSchemaClassPckgName, avroSchemaClassName);
-    final File clsFile = new File(avroSchemaClassesDirPrm, relativeFilePath);
+  static void bytecodePatchAvroSchemaClass(final File avroSchemaClassesDir) throws ClassNotFoundException, IOException {
+    final String avroSchemaClassPackageName = "org.apache.avro";
+    final String avroSchemaFullClassName = avroSchemaClassPackageName + ".Schema";
+    final String relativeFilePath = getClassRelativeFilePath(avroSchemaClassPackageName, avroSchemaFullClassName);
+    final File clsFile = new File(avroSchemaClassesDir, relativeFilePath);
     Files.deleteIfExists(clsFile.toPath());
     final Class<?>[] methArgTypesMatch = { String.class };
     final DynamicType.Unloaded<?> avroSchemaClsUnloaded = new ByteBuddy()
-            .rebase(Class.forName(avroSchemaClassName))
+            .rebase(Class.forName(avroSchemaFullClassName))
             .method(named("validateName").and(returns(String.class)).and(takesArguments(methArgTypesMatch))
                     .and(isPrivate()).and(isStatic()))
             .intercept(MethodDelegation.to(AvroSchemaInterceptor.class))
             .make();
-    avroSchemaClsUnloaded.saveIn(avroSchemaClassesDirPrm);
+    avroSchemaClsUnloaded.saveIn(avroSchemaClassesDir);
   }
 
   private static String getClassRelativeFilePath(final String pckgName, final String name) {

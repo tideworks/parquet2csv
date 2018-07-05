@@ -93,7 +93,7 @@ public class DataLoad {
 
       if (schemaFileOptn.isPresent()) {
         final File avroSchemaFile = schemaFileOptn.get();
-        ValidateSchema.validate(avroSchemaFile);
+        ValidateAvroSchema.validate(avroSchemaFile);
         log.info("Avro schema file \"{}\" validated successfully", avroSchemaFile);
       }
 
