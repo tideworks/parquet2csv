@@ -117,6 +117,7 @@
           </archive>
           <excludes>
             <exclude>com/tideworks/annotation/ByteCodePatchingAnnotationProcessor.class</exclude>
+            <exclude>com/tideworks/annotation/InvokeByteCodePatching.class</exclude>
           </excludes>
         </configuration>
       </plugin>
