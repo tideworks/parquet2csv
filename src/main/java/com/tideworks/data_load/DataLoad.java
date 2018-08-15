@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.FileSystems;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +45,7 @@ public class DataLoad {
     }
     try {
       Optional<File> schemaFileOptn = Optional.empty();
+      Optional<String> timeZoneOffsetOptn = Optional.empty();
       final List<File> inputFiles = new ArrayList<>();
       for(int i = 0; i < args.length; i++) {
         String arg = args[i];
@@ -62,6 +65,17 @@ public class DataLoad {
                   schemaFileOptn = Optional.of(filePath);
                 } else {
                   log.error("expected Arvo-schema file path after option {}", arg);
+                  System.exit(1);
+                }
+                break;
+              }
+              case "tz-offset": {
+                final int n = i + 1;
+                if (n < args.length) {
+                  arg = args[i = n];
+                  timeZoneOffsetOptn = Optional.of(arg);
+                } else {
+                  log.error("expected time zone offset specifier after option {}", arg);
                   System.exit(1);
                 }
                 break;
@@ -98,9 +112,12 @@ public class DataLoad {
         log.info("Avro schema file \"{}\" validated successfully", avroSchemaFile);
       }
 
+      final ZoneId timeZoneId = timeZoneOffsetOptn.isPresent()
+              ? ZoneOffset.of(timeZoneOffsetOptn.get()).normalized() : ZoneId.systemDefault();
+
       for(final File inputFile : inputFiles) {
         log.info("processing Parquet input file: \"{}\"", inputFile);
-        ParquetToCsv.processToOutput(inputFile);
+        ParquetToCsv.processToOutput(timeZoneId, inputFile);
       }
     } catch (Throwable e) {
       log.error("program terminated due to exception:", e);

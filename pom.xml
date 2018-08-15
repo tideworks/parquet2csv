@@ -27,6 +27,7 @@
     <avro.version>1.8.2</avro.version>
     <parquet.avro.version>1.10.0</parquet.avro.version>
     <byte_buddy.version>0.7.6</byte_buddy.version>
+		<joda.time>2.10</joda.time>
     <skip.tests>true</skip.tests>
   </properties>
 
@@ -246,5 +247,10 @@
       <artifactId>byte-buddy</artifactId>
       <version>${byte_buddy.version}</version>
     </dependency>
-  </dependencies>
+    <dependency>
+      <groupId>joda-time</groupId>
+      <artifactId>joda-time</artifactId>
+      <version>${joda.time}</version>
+		</dependency>
+	</dependencies>
 </project>

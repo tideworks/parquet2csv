@@ -15,6 +15,9 @@ import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.hadoop.ParquetReader;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,8 +49,18 @@ class ParquetToCsv {
   private static final String notParquetFileErrMsgFmt =
           "\"{}\" does not end in '{}' - thus is not assumed to be a Parquet file and is being skipped";
   private static final String unsupportedFieldIndexErrMsgFmt = "Unsupported field index %d - %s only supports index 0";
+  private static final String SPINNAKER_EPOC_START = "1900-01-01T00:00:00.000-00:00";
+  private static final String MISC_DATETIME_PARSE_ERR = "1900-01-02T00:00:00.000-00:00";
+  private static final DateTime spinnakerEpocStart;
+  private static final DateTime miscDateTimeParseErr;
 
-  static void processToOutput(final File inputFile) throws IOException {
+  static {
+    final DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime().withOffsetParsed();
+    spinnakerEpocStart = dateTimeFormatter.parseDateTime(SPINNAKER_EPOC_START);
+    miscDateTimeParseErr = dateTimeFormatter.parseDateTime(MISC_DATETIME_PARSE_ERR);
+  }
+
+  static void processToOutput(ZoneId timeZoneId, final File inputFile) throws IOException {
     final String fileName = inputFile.getName();
     if (!fileName.endsWith(fileExtent)) {
       log.error(notParquetFileErrMsgFmt, inputFile, fileExtent);
@@ -58,7 +71,8 @@ class ParquetToCsv {
     final File csvOutputFile = new File(inputFile.getParent(), fileNameBase + ".csv");
 
     final StringBuilder rowStrBuf = new StringBuilder(1024);
-    final BiFunction<Schema.Field, Object, StringBuilder> fieldValueFormatter = makeFieldValueFormatter(rowStrBuf);
+    final BiFunction<Schema.Field, Object, StringBuilder> fieldValueFormatter =
+            makeFieldValueFormatter(timeZoneId, rowStrBuf);
 
     final Charset utf8 = Charset.forName("UTF-8");
     final int ioStreamBufSize = 16 * 1024;
@@ -102,8 +116,10 @@ class ParquetToCsv {
     return fieldNames;
   }
 
-  private static BiFunction<Schema.Field, Object, StringBuilder> makeFieldValueFormatter(final StringBuilder rowStrBuf) {
-    final TimestampISO8601Format dateTimeFormatter = new TimestampISO8601Format();
+  private static BiFunction<Schema.Field, Object, StringBuilder> makeFieldValueFormatter(final ZoneId timeZoneId,
+                                                                                         final StringBuilder rowStrBuf)
+  {
+    final TimestampISO8601Format dateTimeFormatter = new TimestampISO8601Format(timeZoneId);
     final Conversions.DecimalConversion decimalConverter = new Conversions.DecimalConversion();
     final Conversions.UUIDConversion uuidLogicalTypeName = new Conversions.UUIDConversion();
     return (field, fieldValue) ->
@@ -190,7 +206,16 @@ class ParquetToCsv {
         logicalType instanceof LogicalTypes.TimestampMillis ||
         logicalType instanceof LogicalTypes.TimeMillis)
     {
-      rowStrBuf.append('\'').append(dateTimeFormatter.format(new Date((Long) fieldValue))).append('\'');
+      final long epocTimeMS = (Long) fieldValue;
+      String fmtDateTimeText;
+      if (epocTimeMS == spinnakerEpocStart.getMillis()) {
+        fmtDateTimeText = SPINNAKER_EPOC_START;
+      } else if (epocTimeMS == miscDateTimeParseErr.getMillis()) {
+        fmtDateTimeText = MISC_DATETIME_PARSE_ERR;
+      } else {
+        fmtDateTimeText = dateTimeFormatter.format(new Date(epocTimeMS));
+      }
+      rowStrBuf.append('\'').append(fmtDateTimeText).append('\'');
     } else if (logicalType instanceof LogicalTypes.Decimal) {
       final ByteBuffer byteBufFieldValue = (ByteBuffer) fieldValue;
       final BigDecimal bigDecimalFieldValue = decimalConverter.fromBytes(byteBufFieldValue, fieldSchema, logicalType);
@@ -206,6 +231,14 @@ class ParquetToCsv {
   }
 
   private static final class TimestampISO8601Format extends DateFormat {
+    private final ZoneId timeZoneID;
+
+    TimestampISO8601Format(ZoneId timeZoneID) {
+      this.timeZoneID = timeZoneID;
+    }
+    TimestampISO8601Format() {
+      this(ZoneId.systemDefault());
+    }
     @Override
     public StringBuffer format(Date date, StringBuffer toAppendTo, FieldPosition fieldPosition) {
       if (date == null) return toAppendTo;
@@ -213,7 +246,7 @@ class ParquetToCsv {
       if (fieldIndex == 0) {
         @SuppressWarnings("RedundantCast")
         final Instant instant = date instanceof Timestamp ? ((Timestamp) date).toInstant() : date.toInstant();
-        return toAppendTo.append(OffsetDateTime.ofInstant(instant, ZoneId.systemDefault()));
+        return toAppendTo.append(OffsetDateTime.ofInstant(instant, timeZoneID));
       } else {
         throw new AssertionError(String.format(unsupportedFieldIndexErrMsgFmt, fieldIndex, getClass().getSimpleName()));
       }
