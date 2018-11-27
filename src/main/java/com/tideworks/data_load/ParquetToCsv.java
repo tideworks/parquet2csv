@@ -222,8 +222,14 @@ class ParquetToCsv {
       rowStrBuf.append(bigDecimalFieldValue);
     } else if (logicalType.getName().equals(uuidLogicalTypeName.getLogicalTypeName())) {
       final CharSequence csFieldValue = (CharSequence) fieldValue;
-      final UUID uuidFieldValue = uuidLogicalTypeName.fromCharSequence(csFieldValue, fieldSchema, logicalType);
-      rowStrBuf.append('\'').append(uuidFieldValue).append('\'');
+      try {
+        final UUID uuidFieldValue = uuidLogicalTypeName.fromCharSequence(csFieldValue, fieldSchema, logicalType);
+        rowStrBuf.append('\'').append(uuidFieldValue).append('\'');
+      } catch(IllegalArgumentException e) {
+        String unkwn = "unknown";
+        log.warn("{}: {} - using substitute UUID value: \"{}\"", e.getClass().getSimpleName(), e.getMessage(), unkwn);
+        rowStrBuf.append('\'').append(unkwn).append('\'');
+      }
     } else {
       rowStrBuf.append(fieldValue);
     }
