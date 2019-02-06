@@ -26,6 +26,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.FieldPosition;
@@ -68,7 +70,7 @@ class ParquetToCsv {
     }
     final int endIndex = fileName.lastIndexOf(fileExtent);
     final String fileNameBase = fileName.substring(0, endIndex);
-    final File csvOutputFile = new File(inputFile.getParent(), fileNameBase + ".csv");
+    final Path csvOutputFilePath = Paths.get(inputFile.getParent(), fileNameBase + ".csv");
 
     final StringBuilder rowStrBuf = new StringBuilder(1024);
     final BiFunction<Schema.Field, Object, StringBuilder> fieldValueFormatter =
@@ -76,7 +78,7 @@ class ParquetToCsv {
 
     final Charset utf8 = Charset.forName("UTF-8");
     final int ioStreamBufSize = 16 * 1024;
-    final OutputStream csvOutputStream = Files.newOutputStream(csvOutputFile.toPath(), CREATE, TRUNCATE_EXISTING);
+    final OutputStream csvOutputStream = Files.newOutputStream(csvOutputFilePath, CREATE, TRUNCATE_EXISTING);
     final Writer outputWriter = new BufferedWriterExt(new OutputStreamWriter(csvOutputStream, utf8), ioStreamBufSize);
 
     Schema.Field[] fields = null;
@@ -103,6 +105,10 @@ class ParquetToCsv {
         rowStrBuf.deleteCharAt(rowStrBuf.length() - 1).append('\n');
         csvOutputWriter.append(rowStrBuf);
         csvOutputWriter.flush();
+      }
+      if (Files.size(csvOutputFilePath) <= 0) {
+        Files.delete(csvOutputFilePath);
+        log.warn("csv data file was empty (and was deleted): \"{}\"", csvOutputFilePath);
       }
     }
   }
@@ -236,6 +242,7 @@ class ParquetToCsv {
     return rowStrBuf;
   }
 
+  @SuppressWarnings("unused")
   private static final class TimestampISO8601Format extends DateFormat {
     private final ZoneId timeZoneID;
 
