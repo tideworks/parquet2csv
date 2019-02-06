@@ -39,6 +39,9 @@
     </encoder>
   </appender>
 
+  <logger name="org.apache.hadoop.io.compress.CodecPool" level="ERROR" />
+  <logger name="org.apache.parquet.hadoop.InternalParquetRecordReader" level="ERROR" />
+
   <root level="INFO">
     <appender-ref ref="ROLLING" />
     <appender-ref ref="CONSOLE" />
