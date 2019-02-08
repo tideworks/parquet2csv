@@ -70,7 +70,7 @@ class ParquetToCsv {
     }
     final int endIndex = fileName.lastIndexOf(fileExtent);
     final String fileNameBase = fileName.substring(0, endIndex);
-    final Path csvOutputFilePath = Paths.get(inputFile.getParent(), fileNameBase + ".csv");
+    final Path csvOutputFilePath = Paths.get(getParentDir(inputFile), fileNameBase + ".csv");
 
     final StringBuilder rowStrBuf = new StringBuilder(1024);
     final BiFunction<Schema.Field, Object, StringBuilder> fieldValueFormatter =
@@ -240,6 +240,14 @@ class ParquetToCsv {
       rowStrBuf.append(fieldValue);
     }
     return rowStrBuf;
+  }
+
+  public static String getParentDir(File file) {
+    String parentDir = file.getParent();
+    if (parentDir == null || parentDir.isEmpty()) {
+      parentDir = ".";
+    }
+    return parentDir;
   }
 
   @SuppressWarnings("unused")
