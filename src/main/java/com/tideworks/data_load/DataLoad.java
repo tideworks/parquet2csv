@@ -7,6 +7,7 @@
 package com.tideworks.data_load;
 
 import com.tideworks.annotation.InvokeByteCodePatching;
+import com.tideworks.data_load.util.JsonAvroSchemaSerializer;
 import org.apache.avro.Schema;
 import org.apache.parquet.avro.AvroSchemaConverter;
 import org.apache.parquet.bytes.BytesUtils;
@@ -19,6 +20,8 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.map.annotate.JsonDeserialize;
+import org.codehaus.jackson.map.annotate.JsonSerialize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -170,8 +173,8 @@ public class DataLoad {
           if (exportSchemaToJson && isParquet) { // extract schema from .parquet file and write into a .json file
             String schemaAsJson;
             try (final ParquetFileReader rdr = ParquetFileReader.open(nioPathToInputFile(inputFile.toPath()))) {
-              schemaAsJson = MyParquetMetadata.toPrettyJSON(rdr.getFooter());
 //              schemaAsJson = ParquetMetadata.toPrettyJSON(rdr.getFooter());
+              schemaAsJson = MyParquetMetadata.toPrettyJSON(rdr.getFooter());
             }
             final Path schemaAsJsonFilePath = Paths.get(ParquetToCsv.getParentDir(inputFile),
                                                   baseFileName + jsonExtent);
@@ -185,16 +188,19 @@ public class DataLoad {
           } else if (importJsonToSchema && isJson) { // load schema from .json file and write into a .parquet file
             final Path jsonSchemaFilePath = inputFile.toPath();
             final StringBuilder sb = new StringBuilder((int) Files.size(jsonSchemaFilePath));
-            char[] buf = new char[1024];
             try (final Reader reader = Files.newBufferedReader(jsonSchemaFilePath)) {
-              final int n = reader.read(buf);
-              if (n > 0) {
-                sb.append(buf, 0, n);
-              } else if (n < 0) {
-                break; // eof condition
+              char[] buf = new char[1024];
+              for(;;) {
+                final int n = reader.read(buf);
+                if (n > 0) {
+                  sb.append(buf, 0, n);
+                } else if (n < 0) {
+                  break;
+                }
               }
             }
             if (sb.length() > 0) {
+//              final ParquetMetadata parquetMetadata = ParquetMetadata.fromJSON(sb.toString());
               final ParquetMetadata parquetMetadata = MyParquetMetadata.fromJSON(sb.toString());
               final Path schemaAsParquetFilePath = Paths.get(ParquetToCsv.getParentDir(inputFile),
                                                       baseFileName + parquetExtent);
@@ -211,6 +217,7 @@ public class DataLoad {
           // write a .parquet file to pseudo .csv
           ParquetToCsv.processToOutput(timeZoneId, inputFile);
         }
+
       } else if (!schemaFileOptn.isPresent()) {
         log.error("no Parquet input file have been specified for processing - cannot proceed");
         System.exit(1);
@@ -268,29 +275,30 @@ public class DataLoad {
 
   // class that is an analog to the Parquet library FileMetaData class
   // but the schema field is of type Avro Schema instead of MessageType
+  @SuppressWarnings("unused")
   public static final class FileMetaData implements Serializable {
     private static final long serialVersionUID = 1L;
     private Schema schema;
-//    private Map<String, String> keyValueMetaData;
+    private Map<String, String> keyValueMetaData;
     private String createdBy;
     public FileMetaData() { this(null, null, null); } // to support serialization
-    public FileMetaData(Schema schema, Map<String, String> keyValueMetaData, String createdBy) {
+    private FileMetaData(Schema schema, Map<String, String> keyValueMetaData, String createdBy) {
       this.schema = schema;
-//      this.keyValueMetaData = keyValueMetaData;
+      this.keyValueMetaData = keyValueMetaData;
       this.createdBy = createdBy;
     }
-    public String getSchema() {
-      return schema.toString(true);
+    @JsonSerialize(using=JsonAvroSchemaSerializer.AvroSchemaSerializer.class)
+    public Schema getSchema() {
+      return schema;
     }
-    public void setSchema(String schema) {
-      this.schema = new Schema.Parser().setValidate(true).parse(schema);
+    @JsonDeserialize(using=JsonAvroSchemaSerializer.AvroSchemaDeserializer.class)
+    public void setSchema(Schema schema) { this.schema = schema; }
+    public Map<String, String> getKeyValueMetaData() {
+      return keyValueMetaData;
     }
-//    public Map<String, String> getKeyValueMetaData() {
-//      return keyValueMetaData;
-//    }
-//    public void setKeyValueMetaData(Map<String, String> keyValueMetaData) {
-//      this.keyValueMetaData = keyValueMetaData;
-//    }
+    public void setKeyValueMetaData(Map<String, String> keyValueMetaData) {
+      this.keyValueMetaData = keyValueMetaData;
+    }
     public String getCreatedBy() {
       return createdBy;
     }
@@ -301,35 +309,35 @@ public class DataLoad {
 
   @SuppressWarnings("WeakerAccess")
   public static final class MyParquetMetadata {
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     public static String toPrettyJSON(ParquetMetadata parquetMetadata) {
+      final org.apache.parquet.hadoop.metadata.FileMetaData prqFMD = parquetMetadata.getFileMetaData();
       final AvroSchemaConverter avroSchemaConverter = new AvroSchemaConverter();
-      final Schema avroSchema = avroSchemaConverter.convert(parquetMetadata.getFileMetaData().getSchema());
-      final org.apache.parquet.hadoop.metadata.FileMetaData fileMetaData = parquetMetadata.getFileMetaData();
+      final Schema avroSchema = avroSchemaConverter.convert(prqFMD.getSchema());
       final StringWriter stringWriter = new StringWriter();
       try {
-        new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(stringWriter,
-              new FileMetaData(avroSchema, fileMetaData.getKeyValueMetaData(), fileMetaData.getCreatedBy()));
+        final FileMetaData custFMD = new FileMetaData(avroSchema, prqFMD.getKeyValueMetaData(), prqFMD.getCreatedBy());
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(stringWriter, custFMD);
       } catch (IOException e) {
         uncheckedExceptionThrow(e);
       }
       return stringWriter.toString();
     }
+
     @SuppressWarnings("unchecked")
     public static ParquetMetadata fromJSON(String json) {
-      final FileMetaData fileMetaData = jsonToAvroSchemaBasedFileMetaData(json);
+      final FileMetaData custFMD = jsonToAvroSchemaBasedFileMetaData(json);
       final AvroSchemaConverter avroSchemaConverter = new AvroSchemaConverter();
-      final MessageType messageType = avroSchemaConverter.convert(fileMetaData.schema);
-      final org.apache.parquet.hadoop.metadata.FileMetaData theFileMetaData =
-            new org.apache.parquet.hadoop.metadata.FileMetaData(messageType, Collections.EMPTY_MAP,
-                  /*, fileMetaData.keyValueMetaData,*/ fileMetaData.createdBy);
-      final ParquetMetadata parquetMetadata = new ParquetMetadata(theFileMetaData,
-            (List<BlockMetaData>) Collections.EMPTY_LIST);
-      System.out.println(ParquetMetadata.toPrettyJSON(parquetMetadata));
-      return parquetMetadata;
+      final MessageType msgType = avroSchemaConverter.convert(custFMD.schema);
+      final org.apache.parquet.hadoop.metadata.FileMetaData prqFMD =
+            new org.apache.parquet.hadoop.metadata.FileMetaData(msgType, custFMD.keyValueMetaData, custFMD.createdBy);
+      return new ParquetMetadata(prqFMD, (List<BlockMetaData>) Collections.EMPTY_LIST);
     }
+
     private static @Nonnull FileMetaData jsonToAvroSchemaBasedFileMetaData(String json) {
       try {
-        return new ObjectMapper().readValue(new StringReader(json), FileMetaData.class);
+        return objectMapper.readValue(new StringReader(json), FileMetaData.class);
       } catch (IOException e) {
         uncheckedExceptionThrow(e);
       }
