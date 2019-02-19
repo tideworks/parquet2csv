@@ -20,6 +20,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -60,6 +61,24 @@ public class DataLoad {
       System.exit(1); // return non-zero status to indicate program failure
     }
 
+    final Runnable usage = () -> {
+      final String msg = String.join("\n",
+            "prq2csv usage:\n",
+            "\tprq2csv [options] file_path...\n",
+            "\t-?|-h              display this help information",
+            "\t-schema file_path  specified Avro schema file is validated (but",
+            "\t                   otherwise is not utilized for processing)",
+            "\t-tz arg            time zone offset (in hours - plus or minus) or",
+            "\t                   time zone ID name (default is current timezone)",
+            "\t-to-json           per each Parquet input file, its schema is exported to",
+            "\t                   Avro json format file - same base name ending in .json",
+            "\t-from-json         specified .json Avro schema file is converted to Parquet;",
+            "\t                   output file has same base name but now ending in .parquet"
+      );
+      System.out.print(msg);
+      System.exit(0);
+    };
+
     final Consumer<File> validateFile = filePath -> {
       if (!filePath.exists() || !filePath.isFile()) {
         log.error("\"{}\" does not exist or is not a valid file", filePath);
@@ -69,7 +88,7 @@ public class DataLoad {
 
     try {
       Optional<File> schemaFileOptn = Optional.empty();
-      Optional<String> timeZoneOffsetOptn = Optional.empty();
+      Optional<ZoneId> timeZoneIdOptn = Optional.empty();
       final List<File> inputFiles = new ArrayList<>();
       boolean isExportSchemaToJson = false;
       boolean isImportJsonToSchema = false;
@@ -77,6 +96,9 @@ public class DataLoad {
       for (int i = 0; i < args.length; i++) {
         String arg = args[i];
         if (arg.charAt(0) == '-') {
+          if (arg.length() == 2 && (arg.charAt(1) == '?' || arg.charAt(1) == 'h')) {
+            usage.run();
+          }
           final String[] argParts = arg.split("=", 2);
           final String option = argParts[0].substring(1).toLowerCase();
           switch (option) {
@@ -97,7 +119,7 @@ public class DataLoad {
               schemaFileOptn = Optional.of(filePath);
               break;
             }
-            case "tz-offset": {
+            case "tz": {
               if (argParts.length > 1) {
                 arg = argParts[1];
               } else {
@@ -109,7 +131,21 @@ public class DataLoad {
                   break;
                 }
               }
-              timeZoneOffsetOptn = Optional.of(arg);
+              ZoneOffset zoneOffset = null;
+              try {
+                final int hoursOffset = Integer.parseInt(arg);
+                zoneOffset = ZoneOffset.ofHours(hoursOffset);
+              } catch (NumberFormatException ignore) {
+              } catch (DateTimeException e) {
+                log.error("invalid time zone offset:", e);
+                System.exit(1); // return non-zero status to indicate program failure
+              }
+              try {
+                timeZoneIdOptn = Optional.of(ZoneId.of(zoneOffset != null ? zoneOffset.getId() : arg).normalized());
+              } catch (NumberFormatException | DateTimeException e) {
+                log.error("invalid time zone offset:", e);
+                System.exit(1); // return non-zero status to indicate program failure
+              }
               break;
             }
             case "to-json": {
@@ -139,8 +175,7 @@ public class DataLoad {
       }
 
       if (!inputFiles.isEmpty()) {
-        final ZoneId timeZoneId = timeZoneOffsetOptn.isPresent()
-                ? ZoneOffset.of(timeZoneOffsetOptn.get()).normalized() : ZoneId.systemDefault();
+        final ZoneId timeZoneId = timeZoneIdOptn.orElse(ZoneId.systemDefault());
 
         for(final File inputFile : inputFiles) {
           final String fileNameLC = inputFile.getName().toLowerCase();
