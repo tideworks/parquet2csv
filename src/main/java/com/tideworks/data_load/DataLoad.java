@@ -73,7 +73,7 @@ public class DataLoad {
             "\t-to-json           per each Parquet input file, its schema is exported to",
             "\t                   Avro json format file - same base name ending in .json",
             "\t-from-json         specified .json Avro schema file is converted to Parquet;",
-            "\t                   output file has same base name but now ending in .parquet"
+            "\t                   output file has same base name but now ending in .parquet\n"
       );
       System.out.print(msg);
       System.exit(0);
