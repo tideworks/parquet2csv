@@ -8,6 +8,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -74,13 +75,16 @@ public class OneRowParquetSchema {
         throws IOException
   {
     final Path schemaAsPrqPath = makeSchemaFilePathFromBaseFileName(inputFilePath, dirPath, baseFileName, parquetExtent);
-    try (final ParquetWriter<GenericData.Record> prqWrt = makeParquetRecordWriter(avroSchema, schemaAsPrqPath)) {
+    try (final ParquetWriter<GenericData.Record> prqWrt = makeParquetRecordWriter(avroSchema, schemaAsPrqPath,
+          ParquetFileWriter.Mode.OVERWRITE))
+    {
       writeOneRowParquetFile(terminalID, avroSchema, prqWrt);
     }
   }
 
   private static ParquetWriter<GenericData.Record> makeParquetRecordWriter(final Schema avroSchema,
-                                                                           final Path fileToWrite)
+                                                                           final Path fileToWrite,
+                                                                           final ParquetFileWriter.Mode mode)
         throws IOException
   {
     final GenericData genericData = GenericData.get();
@@ -91,6 +95,7 @@ public class OneRowParquetSchema {
     genericData.addLogicalTypeConversion(new Conversions.UUIDConversion());
     return AvroParquetWriter
           .<GenericData.Record>builder(nioPathToOutputFile(fileToWrite))
+          .withWriteMode(mode)
           .withRowGroupSize(256 * 1024 * 1024)
           .withPageSize(128 * 1024)
           .withSchema(avroSchema)
