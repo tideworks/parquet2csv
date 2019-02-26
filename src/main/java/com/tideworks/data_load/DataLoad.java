@@ -7,6 +7,8 @@
 package com.tideworks.data_load;
 
 import com.tideworks.annotation.InvokeByteCodePatching;
+import com.tideworks.data_load.util.io.FileUtils;
+import com.tideworks.data_load.util.io.OneRowParquetSchema;
 import com.tideworks.data_load.util.io.ParquetMetadataToBinarySerialize;
 import com.tideworks.data_load.util.io.ParquetMetadataToJsonSerialize;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -19,16 +21,19 @@ import java.io.*;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static com.tideworks.data_load.io.InputFile.nioPathToInputFile;
 import static com.tideworks.data_load.io.OutputFile.makePositionOutputStream;
+import static com.tideworks.data_load.util.io.FileUtils.jsonExtent;
+import static com.tideworks.data_load.util.io.FileUtils.parquetExtent;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 
@@ -37,9 +42,6 @@ public class DataLoad {
   private static final String clsName = DataLoad.class.getSimpleName();
   private static final Logger log;
   private static final File progDirPathFile;
-  private static final String parquetExtent = ".parquet";
-  private static final String jsonExtent = ".json";
-  private static final String schemaExtent = ".schema";
 
   static { // initialization of static class fields
     final Predicate<String> existsAndIsDir = dirPath -> {
@@ -73,7 +75,9 @@ public class DataLoad {
             "\t-to-json           per each Parquet input file, its schema is exported to",
             "\t                   Avro json format file - same base name ending in .json",
             "\t-from-json         specified .json Avro schema file is converted to Parquet;",
-            "\t                   output file has same base name but now ending in .parquet\n"
+            "\t                   output file has same base name but now ending in .parquet",
+            "\t-one-row-schema    from a specified Parquet file, generate a valid one row",
+            "\t                   schema file (populated by a dummy row, i.e., null columns)\n"
       );
       System.out.print(msg);
       System.exit(0);
@@ -92,6 +96,7 @@ public class DataLoad {
       final List<File> inputFiles = new ArrayList<>();
       boolean isExportSchemaToJson = false;
       boolean isImportJsonToSchema = false;
+      boolean isMakeOneRowSchema = false;
 
       for (int i = 0; i < args.length; i++) {
         String arg = args[i];
@@ -156,6 +161,10 @@ public class DataLoad {
               isImportJsonToSchema = true;
               break;
             }
+            case "one-row-schema": {
+              isMakeOneRowSchema = true;
+              break;
+            }
             default: {
               log.warn("unknown command line option: '{}' - ignoring", arg);
             }
@@ -201,9 +210,16 @@ public class DataLoad {
             log.info("processing {}input file: \"{}\"", fileTypeDesc, inputFile);
           }
 
-          if (isExportSchemaToJson && isParquet) {
-            // extract schema from .parquet file and write into a companion .json file
-            extractParquetMetadataToJson(inputFile, baseFileName);
+          if (isParquet) {
+            if (isExportSchemaToJson) {
+              // extract schema from .parquet file and write into a companion .json file
+              extractParquetMetadataToJson(inputFile, baseFileName);
+              continue;
+            }
+            if (isMakeOneRowSchema) {
+              OneRowParquetSchema.writeSchemaFile(inputFile, baseFileName);
+              continue;
+            }
           } else if (isImportJsonToSchema && isJson) {
             // load schema from .json file and write into a .parquet file
             loadParquetMetadataFromJson(inputFile, baseFileName);
@@ -233,15 +249,13 @@ public class DataLoad {
     try (final ParquetFileReader rdr = ParquetFileReader.open(nioPathToInputFile(inputFile.toPath()))) {
       schemaAsJson = ParquetMetadataToJsonSerialize.toPrettyJSON(rdr.getFooter());
     }
-    final String dirPath = ParquetToCsv.getParentDir(inputFile);
-    final String fileName = baseFileName + schemaExtent + jsonExtent;
-    final Path schemaAsJsonFilePath = Paths.get(dirPath, fileName);
-    try (final Writer writer = Files.newBufferedWriter(schemaAsJsonFilePath, CREATE, TRUNCATE_EXISTING)) {
+    final Path schemaAsJsonPath = FileUtils.makeSchemaFilePathFromBaseFileName(inputFile, baseFileName, jsonExtent);
+    try (final Writer writer = Files.newBufferedWriter(schemaAsJsonPath, CREATE, TRUNCATE_EXISTING)) {
       writer.write(schemaAsJson);
     }
-    if (Files.size(schemaAsJsonFilePath) <= 0) {
-      Files.delete(schemaAsJsonFilePath);
-      log.warn("schema-as-JSON file was empty (and was deleted): \"{}\"", schemaAsJsonFilePath);
+    if (Files.size(schemaAsJsonPath) <= 0) {
+      Files.delete(schemaAsJsonPath);
+      log.warn("schema-as-JSON file was empty (and was deleted): \"{}\"", schemaAsJsonPath);
     }
   }
 
@@ -254,11 +268,8 @@ public class DataLoad {
       try (final Reader jsonReader = Files.newBufferedReader(jsonSchemaFilePath)) {
         parquetMetadata = ParquetMetadataToJsonSerialize.fromJSON(jsonReader);
       }
-      final String dirPath = ParquetToCsv.getParentDir(inputFile);
-      final String fileName = baseFileName.endsWith(schemaExtent)
-            ? baseFileName + parquetExtent : baseFileName + schemaExtent + parquetExtent;
-      final Path schemaAsParquetFilePath = Paths.get(dirPath, fileName);
-      final OutputStream outStream = Files.newOutputStream(schemaAsParquetFilePath, CREATE, TRUNCATE_EXISTING);
+      final Path schemaAsPrqPath = FileUtils.makeSchemaFilePathFromBaseFileName(inputFile, baseFileName, parquetExtent);
+      final OutputStream outStream = Files.newOutputStream(schemaAsPrqPath, CREATE, TRUNCATE_EXISTING);
       try (final PositionOutputStream out = makePositionOutputStream(() -> outStream)) {
         ParquetMetadataToBinarySerialize.serializeFullFooter(parquetMetadata, out);
       }

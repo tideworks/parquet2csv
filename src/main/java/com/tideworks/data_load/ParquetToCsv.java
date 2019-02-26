@@ -7,6 +7,7 @@
 package com.tideworks.data_load;
 
 import com.tideworks.data_load.io.BufferedWriterExt;
+import com.tideworks.data_load.util.io.FileUtils;
 import org.apache.avro.Conversions;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -44,7 +45,7 @@ import static com.tideworks.data_load.io.InputFile.nioPathToInputFile;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 
-class ParquetToCsv {
+public class ParquetToCsv {
   private static final String csvDelimiter = ",";
   private static final Logger log = LoggerFactory.getLogger(ParquetToCsv.class.getSimpleName());
   private static final String fileExtent = ".parquet";
@@ -70,7 +71,7 @@ class ParquetToCsv {
     }
     final int endIndex = fileName.lastIndexOf(fileExtent);
     final String fileNameBase = fileName.substring(0, endIndex);
-    final Path csvOutputFilePath = Paths.get(getParentDir(inputFile), fileNameBase + ".csv");
+    final Path csvOutputFilePath = Paths.get(FileUtils.getParentDir(inputFile), fileNameBase + ".csv");
 
     final StringBuilder rowStrBuf = new StringBuilder(1024);
     final BiFunction<Schema.Field, Object, StringBuilder> fieldValueFormatter =
@@ -240,14 +241,6 @@ class ParquetToCsv {
       rowStrBuf.append(fieldValue);
     }
     return rowStrBuf;
-  }
-
-  public static String getParentDir(File file) {
-    String parentDir = file.getParent();
-    if (parentDir == null || parentDir.isEmpty()) {
-      parentDir = ".";
-    }
-    return parentDir;
   }
 
   @SuppressWarnings("unused")

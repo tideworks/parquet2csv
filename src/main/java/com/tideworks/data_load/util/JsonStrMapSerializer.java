@@ -11,7 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class JsonStrMapSerializer {
-  private static final String avroSchemaFieldName = "parquet.avro.schema";
+  public static final String avroSchemaFieldName = "parquet.avro.schema";
 
   public static final class StringMapSerializer extends JsonSerializer<Map<String, String>> {
     @SuppressWarnings("DuplicateThrows")
