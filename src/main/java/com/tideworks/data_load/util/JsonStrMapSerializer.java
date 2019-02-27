@@ -1,3 +1,9 @@
+/* JsonStrMapSerializer.java
+ *
+ * Copyright June 2019 Tideworks Technology
+ * Author: Roger D. Voss
+ * MIT License
+ */
 package com.tideworks.data_load.util;
 
 import org.codehaus.jackson.*;

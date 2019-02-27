@@ -1,3 +1,9 @@
+/* FileUtils.java
+ *
+ * Copyright June 2019 Tideworks Technology
+ * Author: Roger D. Voss
+ * MIT License
+ */
 package com.tideworks.data_load.util.io;
 
 import java.io.File;

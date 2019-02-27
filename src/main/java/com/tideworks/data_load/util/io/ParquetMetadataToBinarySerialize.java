@@ -1,3 +1,9 @@
+/* ParquetMetadataToBinarySerialize.java
+ *
+ * Copyright June 2019 Tideworks Technology
+ * Author: Roger D. Voss
+ * MIT License
+ */
 package com.tideworks.data_load.util.io;
 
 import org.apache.parquet.bytes.BytesUtils;
