@@ -19,6 +19,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <slf4j.version>1.7.7</slf4j.version>
     <logback.version>1.1.2</logback.version>
+    <janino.version>2.6.1</janino.version>
     <jackson.mapper.asl.version>1.9.13</jackson.mapper.asl.version>
     <junit.version>4.12</junit.version>
     <hadoop.common.version>3.1.0</hadoop.common.version>
@@ -205,7 +206,7 @@
     <dependency>
       <groupId>org.codehaus.janino</groupId>
       <artifactId>janino</artifactId>
-      <version>2.6.1</version>
+      <version>${janino.version}</version>
     </dependency>
     <dependency>
       <groupId>org.codehaus.jackson</groupId>
@@ -225,7 +226,11 @@
           <groupId>org.slf4j</groupId>
           <artifactId>slf4j-log4j12</artifactId>
         </exclusion>
-      </exclusions>			
+        <exclusion>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-annotations</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
