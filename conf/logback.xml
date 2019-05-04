@@ -6,8 +6,13 @@
 -->
 <configuration scan="true" scanPeriod="30 seconds">
 
-  <property name="log_name" value="parquet2csv"/>
+  <property name="log_name" value="prq2csv"/>
   <property name="log_folder" value="logs"/>
+  <if condition='property("app.name").contains("extr-prq-md")'>
+    <then>
+      <property name="log_name" value="extr-prq-md"/>
+    </then>
+  </if>
 
   <appender name="ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
