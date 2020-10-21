@@ -10,8 +10,8 @@
   <groupId>com.tideworks.data_load</groupId>
   <artifactId>parquet2csv</artifactId>
   <packaging>jar</packaging>
-  <version>1.0-SNAPSHOT</version>
-  <name>parquet</name>
+  <version>1.0.0</version>
+  <name>prq2csv</name>
   <url>http://maven.apache.org</url>
 
   <!-- Project Properties -->
@@ -20,6 +20,8 @@
     <slf4j.version>1.7.7</slf4j.version>
     <logback.version>1.1.2</logback.version>
     <janino.version>2.6.1</janino.version>
+    <jackson_annotations.version>2.8.0</jackson_annotations.version>
+    <jackson_core.version>2.8.2</jackson_core.version>
     <jackson.mapper.asl.version>1.9.13</jackson.mapper.asl.version>
     <junit.version>4.12</junit.version>
     <hadoop.common.version>3.1.0</hadoop.common.version>
@@ -28,8 +30,9 @@
     <avro.version>1.8.2</avro.version>
     <parquet.avro.version>1.10.0</parquet.avro.version>
     <byte_buddy.version>0.7.6</byte_buddy.version>
-		<joda.time>2.10</joda.time>
+    <joda.time>2.10</joda.time>
     <skip.tests>true</skip.tests>
+    <maven.test.skip>true</maven.test.skip>
   </properties>
 
   <build>
@@ -73,8 +76,9 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.7.0</version>
         <configuration>
-          <source>1.8</source>
-          <target>1.8</target>
+          <source>8</source>
+          <target>8</target>
+          <fork>true</fork>
           <compilerArgs>
             <arg>-proc:none</arg>
           </compilerArgs>
@@ -208,6 +212,24 @@
       <artifactId>janino</artifactId>
       <version>${janino.version}</version>
     </dependency>
+    <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+      <version>${jackson_annotations.version}</version>
+    </dependency>
+    <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>${jackson_core.version}</version>
+    </dependency>
+    <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson_core.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.codehaus.jackson</groupId>
       <artifactId>jackson-mapper-asl</artifactId>
@@ -261,6 +283,6 @@
       <groupId>joda-time</groupId>
       <artifactId>joda-time</artifactId>
       <version>${joda.time}</version>
-		</dependency>
-	</dependencies>
+    </dependency>
+  </dependencies>
 </project>
