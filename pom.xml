@@ -21,7 +21,7 @@
     <logback.version>1.1.2</logback.version>
     <janino.version>2.6.1</janino.version>
     <jackson_annotations.version>2.8.0</jackson_annotations.version>
-    <jackson_core.version>2.8.2</jackson_core.version>
+    <jackson_core.version>2.11.3</jackson_core.version>
     <jackson.mapper.asl.version>1.9.13</jackson.mapper.asl.version>
     <junit.version>4.12</junit.version>
     <hadoop.common.version>3.1.0</hadoop.common.version>
