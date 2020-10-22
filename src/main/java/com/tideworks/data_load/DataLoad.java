@@ -104,11 +104,11 @@ public class DataLoad {
           "                                   utilized for processing)",
           "  -tz|--time-zone arg              time zone offset (in hours - plus or minus) or time zone ID name",
           "                                   (default is current timezone)",
-          "  -to-json                         for each Parquet input file, its schema is exported to Avro json",
+          "  -tj|--to-json                    for each Parquet input file, its schema is exported to Avro json",
           "                                   format file - same base name while ending in .json",
-          "  -from-json                       specified .json Avro schema file is converted to Parquet; output",
+          "  -fj|--from-json                  specified .json Avro schema file is converted to Parquet; output",
           "                                   file has same base name but now ending in .parquet",
-          "  -one-row-schema                  from a specified Parquet file, generate a valid one row schema file",
+          "  -orsch|--one-row-schema          from a specified Parquet file, generate a valid one row schema file",
           "                                   (populated by a dummy row, i.e., null columns)"
           );
     System.out.println(msg);
@@ -150,15 +150,18 @@ public class DataLoad {
               usage();
               return;
             }
-            case "-to-json": {
+            case "-tj":
+            case "--to-json": {
               isExportSchemaToJson = true;
               continue;
             }
-            case "-from-json": {
+            case "-fj":
+            case "--from-json": {
               isImportJsonToSchema = true;
               continue;
             }
-            case "-one-row-schema": {
+            case "-orsch":
+            case "--one-row-schema": {
               isMakeOneRowSchema = true;
               continue;
             }
