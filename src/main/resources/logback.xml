@@ -15,9 +15,6 @@
   </if>
 
   <appender name="ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>INFO</level>
-    </filter>
     <file>${program.directoryPath}/${log_folder}/${log_name}.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
       <!-- rollover daily -->
@@ -46,6 +43,7 @@
 
   <logger name="org.apache.hadoop.io.compress.CodecPool" level="ERROR" />
   <logger name="org.apache.parquet.hadoop.InternalParquetRecordReader" level="ERROR" />
+  <logger name="org.apache.hadoop.util.NativeCodeLoader" level="ERROR" />
 
   <root level="INFO">
     <appender-ref ref="ROLLING" />
