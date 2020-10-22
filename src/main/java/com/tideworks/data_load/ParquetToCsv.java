@@ -7,7 +7,6 @@
 package com.tideworks.data_load;
 
 import com.tideworks.data_load.io.BufferedWriterExt;
-import com.tideworks.data_load.util.io.FileUtils;
 import org.apache.avro.Conversions;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -26,6 +25,7 @@ import java.io.*;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -63,7 +63,7 @@ public class ParquetToCsv {
     miscDateTimeParseErr = dateTimeFormatter.parseDateTime(MISC_DATETIME_PARSE_ERR);
   }
 
-  static void processToOutput(ZoneId timeZoneId, final File inputFile) throws IOException {
+  static void processToOutput(ZoneId timeZoneId, final String outputDir, final File inputFile) throws IOException {
     final String fileName = inputFile.getName();
     if (!fileName.endsWith(fileExtent)) {
       log.error(notParquetFileErrMsgFmt, inputFile, fileExtent);
@@ -71,13 +71,13 @@ public class ParquetToCsv {
     }
     final int endIndex = fileName.lastIndexOf(fileExtent);
     final String fileNameBase = fileName.substring(0, endIndex);
-    final Path csvOutputFilePath = Paths.get(FileUtils.getParentDir(inputFile), fileNameBase + ".csv");
+    final Path csvOutputFilePath = Paths.get(outputDir, fileNameBase + ".csv");
 
     final StringBuilder rowStrBuf = new StringBuilder(1024);
     final BiFunction<Schema.Field, Object, StringBuilder> fieldValueFormatter =
             makeFieldValueFormatter(timeZoneId, rowStrBuf);
 
-    final Charset utf8 = Charset.forName("UTF-8");
+    final Charset utf8 = StandardCharsets.UTF_8;
     final int ioStreamBufSize = 16 * 1024;
     final OutputStream csvOutputStream = Files.newOutputStream(csvOutputFilePath, CREATE, TRUNCATE_EXISTING);
     final Writer outputWriter = new BufferedWriterExt(new OutputStreamWriter(csvOutputStream, utf8), ioStreamBufSize);
@@ -161,15 +161,10 @@ public class ParquetToCsv {
         if (fieldType != null) {
           switch (fieldType) {
             case RECORD:
-              throw new UnsupportedOperationException();
             case ARRAY:
-              throw new UnsupportedOperationException();
             case MAP:
-              throw new UnsupportedOperationException();
             case UNION:
-              throw new UnsupportedOperationException();
             case FIXED:
-              throw new UnsupportedOperationException();
             case BYTES:
               throw new UnsupportedOperationException();
             default: {
@@ -184,14 +179,26 @@ public class ParquetToCsv {
                     break;
                   case FLOAT: {
                     if (fieldValue instanceof Float) {
+                      // Use of 'new BigDecimal(arg)' may yield different result than 'BigDecimal.valueOf(arg)'
+                      // when the argument is a floating point; the latter usage may produce an appended numeric
+                      // decimal point zero ('.0') when is actually a whole number, while the former may produce
+                      // a whole number without any decimal point numeric component (when converted via toString).
+                      // From: JavaDoc
+                      // When a double must be used as a source for a BigDecimal, note that this constructor
+                      // provides an exact conversion; it does not give the same result as converting the
+                      // double to a String using the Double.toString(double) method and then using the
+                      // BigDecimal(String) constructor. To get that result, use the static valueOf(double) method.
+                      //noinspection UnpredictableBigDecimalConstructorCall
                       return rowStrBuf.append(new BigDecimal((Float) fieldValue));
                     } else if (fieldValue instanceof Double) {
+                      //noinspection UnpredictableBigDecimalConstructorCall
                       return rowStrBuf.append(new BigDecimal((Double) fieldValue));
                     }
                     break;
                   }
                   case DOUBLE:
                     if (fieldValue instanceof Double) {
+                      //noinspection UnpredictableBigDecimalConstructorCall
                       return rowStrBuf.append(new BigDecimal((Double) fieldValue));
                     }
                   case BOOLEAN:
