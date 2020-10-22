@@ -9,7 +9,6 @@ package com.tideworks.data_load.util.io;
 import java.io.File;
 import java.nio.file.Path;
 
-@SuppressWarnings("WeakerAccess")
 public class FileUtils {
   public static final String schemaExtent = ".schema";
   public static final String parquetExtent = ".parquet";
@@ -21,14 +20,6 @@ public class FileUtils {
       parentDir = ".";
     }
     return parentDir;
-  }
-
-  public static Path makeSchemaFilePathFromBaseFileName(File inputFile, String baseFileName, String extent) {
-    return makeSchemaFilePathFromBaseFileName(inputFile.toPath(), getParentDir(inputFile), baseFileName, extent);
-  }
-
-  public static Path makeSchemaFilePathFromBaseFileName(Path inputFile, String baseFileName, String extent) {
-    return makeSchemaFilePathFromBaseFileName(inputFile, getParentDir(inputFile.toFile()), baseFileName, extent);
   }
 
   public static Path makeSchemaFilePathFromBaseFileName(Path inputFile, String dirPath, String baseFileName,
