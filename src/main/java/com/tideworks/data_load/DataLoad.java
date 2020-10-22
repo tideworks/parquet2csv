@@ -109,7 +109,8 @@ public class DataLoad {
           "  -fj|--from-json                  specified .json Avro schema file is converted to Parquet; output",
           "                                   file has same base name but now ending in .parquet",
           "  -orsch|--one-row-schema          from a specified Parquet file, generate a valid one row schema file",
-          "                                   (populated by a dummy row, i.e., null columns)"
+          "                                   (populated by a dummy row, i.e., null columns)",
+          "  -o|--output-dir directory_path   directory where generated files will land at (optional)"
           );
     System.out.println(msg);
   }
@@ -129,12 +130,21 @@ public class DataLoad {
       return filePath;
     };
 
+    final Function<File, File> validateDir = dirPath -> {
+      if (!dirPath.exists() || !dirPath.isDirectory()) {
+        log.error("does not exist or is not a valid directory:{}\t\"{}\"", eol, dirPath);
+        System.exit(1); // return non-zero status to indicate program failure
+      }
+      return dirPath;
+    };
+
     try {
       final IntFunction<Optional<String>> getNextArg = index ->
                                                        index < args.length ? Optional.of(args[index]) : Optional.empty();
 
       Optional<File> schemaFileOptn = Optional.empty();
       Optional<ZoneId> timeZoneIdOptn = Optional.empty();
+      Optional<File> outputDirOptn = Optional.empty();
       final List<File> inputFiles = new ArrayList<>();
       boolean isExportSchemaToJson = false;
       boolean isImportJsonToSchema = false;
@@ -214,8 +224,18 @@ public class DataLoad {
               }
               break;
             }
+            case "-o":
+            case "--output-dir": {
+              final Supplier<Exception> missingOutputDirPath = () -> {
+                final String errmsg = option + " => is missing output directory path specification argument";
+                return new Exception(errmsg);
+              };
+              arg = (argParts.length > 1 ? argParts[1] : getNextArg.apply(++i).orElseThrow(missingOutputDirPath)).trim();
+              outputDirOptn = Optional.of(validateDir.apply(new File(arg)));
+              break;
+            }
             default: {
-              log.warn("unknown command line option: '{}' - ignoring", arg);
+              log.warn("unknown command line option: '{}' - attempting to ignore", arg);
             }
           }
         } else {
@@ -257,25 +277,27 @@ public class DataLoad {
             log.info("processing {}input file: \"{}\"", fileTypeDesc, inputFile);
           }
 
+          final String outputDir = outputDirOptn.map(File::toString).orElse(FileUtils.getParentDir(inputFile));
+
           if (isParquet) {
             if (isExportSchemaToJson) {
               // extract schema from .parquet file and write into a companion .json file
-              extractParquetMetadataToJson(inputFile, baseFileName);
+              extractParquetMetadataToJson(inputFile, outputDir, baseFileName);
               continue;
             }
             if (isMakeOneRowSchema) {
-              OneRowParquetSchema.writeSchemaFile(inputFile, baseFileName);
+              OneRowParquetSchema.writeSchemaFile(inputFile, outputDir, baseFileName);
               continue;
             }
           } else if (isImportJsonToSchema && isJson) {
             // load schema from .json file and write into a .parquet file
-            loadParquetMetadataFromJson(inputFile, baseFileName);
+            loadParquetMetadataFromJson(inputFile, outputDir, baseFileName);
             continue;
           }
 
           if (isParquet) {
             // write a .parquet file to pseudo .csv
-            ParquetToCsv.processToOutput(timeZoneId, inputFile);
+            ParquetToCsv.processToOutput(timeZoneId, outputDir, inputFile);
           } else {
             log.error("not a recognized file type for processing: \"{}\"", inputFile);
           }
@@ -291,22 +313,26 @@ public class DataLoad {
     log.info("program completion successful");
   }
 
-  private static void extractParquetMetadataToJson(File inputFile, String baseFileName) throws IOException {
+  private static void extractParquetMetadataToJson(final File inputFile, final String outputDir, final String baseFileName)
+        throws IOException
+  {
     String schemaAsJson;
     try (final ParquetFileReader rdr = ParquetFileReader.open(nioPathToInputFile(inputFile.toPath()))) {
       schemaAsJson = ParquetMetadataToJsonSerialize.toPrettyJSON(rdr.getFooter());
     }
-    final Path schemaAsJsonPath = FileUtils.makeSchemaFilePathFromBaseFileName(inputFile, baseFileName, jsonExtent);
+    final Path schemaAsJsonPath = FileUtils.makeSchemaFilePathFromBaseFileName(inputFile.toPath(), outputDir, baseFileName, jsonExtent);
     try (final Writer writer = Files.newBufferedWriter(schemaAsJsonPath, CREATE, TRUNCATE_EXISTING)) {
       writer.write(schemaAsJson);
     }
     if (Files.size(schemaAsJsonPath) <= 0) {
       Files.delete(schemaAsJsonPath);
-      log.warn("schema-as-JSON file was empty (and was deleted): \"{}\"", schemaAsJsonPath);
+      log.warn("schema-as-JSON file was empty (and was deleted):{}\t\"{}\"", eol, schemaAsJsonPath);
     }
   }
 
-  private static void loadParquetMetadataFromJson(File inputFile, String baseFileName) throws IOException {
+  private static void loadParquetMetadataFromJson(final File inputFile, final String outputDir, final String baseFileName)
+        throws IOException
+  {
     final Path jsonSchemaFilePath = inputFile.toPath();
     if (Files.exists(jsonSchemaFilePath) && Files.isRegularFile(jsonSchemaFilePath)
           && Files.size(jsonSchemaFilePath) > 0)
@@ -315,13 +341,13 @@ public class DataLoad {
       try (final Reader jsonReader = Files.newBufferedReader(jsonSchemaFilePath)) {
         parquetMetadata = ParquetMetadataToJsonSerialize.fromJSON(jsonReader);
       }
-      final Path schemaAsPrqPath = FileUtils.makeSchemaFilePathFromBaseFileName(inputFile, baseFileName, parquetExtent);
+      final Path schemaAsPrqPath = FileUtils.makeSchemaFilePathFromBaseFileName(inputFile.toPath(), outputDir, baseFileName, parquetExtent);
       final OutputStream outStream = Files.newOutputStream(schemaAsPrqPath, CREATE, TRUNCATE_EXISTING);
       try (final PositionOutputStream out = makePositionOutputStream(() -> outStream)) {
         ParquetMetadataToBinarySerialize.serializeFullFooter(parquetMetadata, out);
       }
     } else {
-      log.warn("JSON schema file empty (or invalid) - skipping: \"{}\"", jsonSchemaFilePath);
+      log.warn("JSON schema file empty (or invalid) - skipping:{}\t\"{}\"", eol, jsonSchemaFilePath);
     }
   }
 }
