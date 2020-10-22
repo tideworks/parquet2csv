@@ -1,6 +1,6 @@
 /* DataLoad.java
  *
- * Copyright June 2018 Tideworks Technology
+ * Copyright June 2018-2020 Tideworks Technology
  * Author: Roger D. Voss
  * MIT License
  */
@@ -27,8 +27,9 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 import static com.tideworks.data_load.io.InputFile.nioPathToInputFile;
 import static com.tideworks.data_load.io.OutputFile.makePositionOutputStream;
@@ -40,57 +41,98 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 @InvokeByteCodePatching
 public class DataLoad {
   private static final String clsName = DataLoad.class.getSimpleName();
-  private static final Logger log;
+  private static final String eol = System.getProperty("line.separator");
   private static final File progDirPathFile;
+          static final String logBackXml = "logback.xml";
+  private static final String logsDirStr = "logs";
+  private static final String abortPrgErrMsg = "cannot continue - aborting program:";
+  private static final Supplier<Logger> clsLoggerFactory = () -> LoggerFactory.getLogger(clsName);
+  private static Logger log;
 
   static { // initialization of static class fields
-    final Predicate<String> existsAndIsDir = dirPath -> {
-      final File dirPathFile = new File(dirPath);
-      return dirPathFile.exists() && dirPathFile.isDirectory();
-    };
-    String homeDirPath = System.getenv("HOME"); // user home directory
-    homeDirPath = homeDirPath != null && !homeDirPath.isEmpty() && existsAndIsDir.test(homeDirPath) ? homeDirPath : ".";
-    progDirPathFile = FileSystems.getDefault().getPath(homeDirPath).toFile();
-    LoggingLevel.setLoggingVerbosity(LoggingLevel.DEBUG);
-    log = LoggingLevel.effectLoggingLevel(() -> LoggerFactory.getLogger(clsName));
+    progDirPathFile = insureLogBackXmlExist(FileSystems.getDefault().getPath(".").toFile());
+    LoggingLevel.setLoggingVerbosity(LoggingLevel.INFO);
+    log = LoggingLevel.effectLoggingLevel(clsLoggerFactory);
+  }
+
+  private static File insureLogBackXmlExist(final File progDirPathFile) {
+    final File logsDir = new File(progDirPathFile, logsDirStr);
+    String errmsg = abortPrgErrMsg;
+    try {
+      errmsg = String.format("logging directory could not be created: \"%s%c\" :", logsDir, File.separatorChar);
+      Files.createDirectories(logsDir.toPath());
+      final File logBackXmlFile = new File(progDirPathFile, logBackXml);
+      errmsg = String.format("can't create: \"%s\" :", logBackXmlFile);
+      if (logBackXmlFile.exists() && logBackXmlFile.isFile() && Files.size(logBackXmlFile.toPath()) > 0) {
+        return progDirPathFile;
+      }
+      try (final InputStream logBackXmlRsrc = ClassLoader.getSystemResourceAsStream(logBackXml);
+           final OutputStream logBackXmlOut = Files.newOutputStream(logBackXmlFile.toPath(), CREATE, TRUNCATE_EXISTING) )
+      {
+        assert logBackXmlRsrc != null;
+        byte[] ioBuf = new byte[512];
+        for (; ; ) {
+          final int n = logBackXmlRsrc.read(ioBuf);
+          if (n < 0) {
+            break;
+          } else if (n == 0) {
+            continue;
+          }
+          logBackXmlOut.write(ioBuf, 0, n);
+        }
+        logBackXmlOut.flush();
+      }
+    } catch (IOException e) {
+      System.err.println(errmsg);
+      e.printStackTrace(System.err);
+      System.exit(1);
+    }
+    return progDirPathFile;
   }
 
   static File getProgDirPath() { return progDirPathFile; }
 
+  private static void usage() {
+    final String msg = String.join(eol,
+          "prq2csv usage:",
+          "",
+          "  prq2csv [options] file_path...",
+          "",
+          "  -?|-h|--help                     display this help information",
+          "  -v|--verbosity level             level can be: trace, debug, info, warn, error (default: info)",
+          "  -schema|--avro-schema file_path  specified Avro schema file is validated (but otherwise is not",
+          "                                   utilized for processing)",
+          "  -tz|--time-zone arg              time zone offset (in hours - plus or minus) or time zone ID name",
+          "                                   (default is current timezone)",
+          "  -to-json                         for each Parquet input file, its schema is exported to Avro json",
+          "                                   format file - same base name while ending in .json",
+          "  -from-json                       specified .json Avro schema file is converted to Parquet; output",
+          "                                   file has same base name but now ending in .parquet",
+          "  -one-row-schema                  from a specified Parquet file, generate a valid one row schema file",
+          "                                   (populated by a dummy row, i.e., null columns)"
+          );
+    System.out.println(msg);
+  }
+
   public static void main(String[] args) {
     if (args.length <= 0) {
       log.error("no Parquet input files were specified to be processed");
+      usage();
       System.exit(1); // return non-zero status to indicate program failure
     }
 
-    final Runnable usage = () -> {
-      final String msg = String.join("\n",
-            "prq2csv usage:\n",
-            "\tprq2csv [options] file_path...\n",
-            "\t-?|-h              display this help information",
-            "\t-schema file_path  specified Avro schema file is validated (but",
-            "\t                   otherwise is not utilized for processing)",
-            "\t-tz arg            time zone offset (in hours - plus or minus) or",
-            "\t                   time zone ID name (default is current timezone)",
-            "\t-to-json           per each Parquet input file, its schema is exported to",
-            "\t                   Avro json format file - same base name ending in .json",
-            "\t-from-json         specified .json Avro schema file is converted to Parquet;",
-            "\t                   output file has same base name but now ending in .parquet",
-            "\t-one-row-schema    from a specified Parquet file, generate a valid one row",
-            "\t                   schema file (populated by a dummy row, i.e., null columns)\n"
-      );
-      System.out.print(msg);
-      System.exit(0);
-    };
-
-    final Consumer<File> validateFile = filePath -> {
+    final Function<File, File> validateFile = filePath -> {
       if (!filePath.exists() || !filePath.isFile()) {
-        log.error("\"{}\" does not exist or is not a valid file", filePath);
+        log.error("does not exist or is not a valid file:{}\t\"{}\"", eol, filePath);
         System.exit(1); // return non-zero status to indicate program failure
       }
+      return filePath;
     };
 
     try {
+      final IntFunction<Optional<String>> getNextArg = index ->
+                                                       index < args.length ? Optional.of(args[index]) : Optional.empty();
+
       Optional<File> schemaFileOptn = Optional.empty();
       Optional<ZoneId> timeZoneIdOptn = Optional.empty();
       final List<File> inputFiles = new ArrayList<>();
@@ -101,41 +143,56 @@ public class DataLoad {
       for (int i = 0; i < args.length; i++) {
         String arg = args[i];
         if (arg.charAt(0) == '-') {
-          if (arg.length() == 2 && (arg.charAt(1) == '?' || arg.charAt(1) == 'h')) {
-            usage.run();
+          switch(arg.toLowerCase()) {
+            case "-h":
+            case "-?":
+            case "--help": {
+              usage();
+              return;
+            }
+            case "-to-json": {
+              isExportSchemaToJson = true;
+              continue;
+            }
+            case "-from-json": {
+              isImportJsonToSchema = true;
+              continue;
+            }
+            case "-one-row-schema": {
+              isMakeOneRowSchema = true;
+              continue;
+            }
           }
           final String[] argParts = arg.split("=", 2);
-          final String option = argParts[0].substring(1).toLowerCase();
-          switch (option) {
-            case "schema": {
-              if (argParts.length > 1) {
-                arg = argParts[1];
-              } else {
-                final int n = i + 1;
-                if (n < args.length) {
-                  arg = args[i = n];
-                } else {
-                  log.warn("expected Arvo-schema file path after option {}", argParts[0]);
-                  break;
-                }
-              }
-              final File filePath = new File(arg);
-              validateFile.accept(filePath);
-              schemaFileOptn = Optional.of(filePath);
+          final String option = argParts[0];
+          switch (option.toLowerCase()) {
+            case "-v":
+            case "--verbosity": {
+              final Supplier<Exception> missingVerbositySpecifier = () -> {
+                final String errmsg = option + " => is missing logging verbosity specifier argument";
+                return new Exception(errmsg);
+              };
+              arg = (argParts.length > 1 ? argParts[1] : getNextArg.apply(++i).orElseThrow(missingVerbositySpecifier)).trim();
+              log = LoggingLevel.adjustLoggingLevel(arg, clsLoggerFactory);
               break;
             }
-            case "tz": {
-              if (argParts.length > 1) {
-                arg = argParts[1];
-              } else {
-                final int n = i + 1;
-                if (n < args.length) {
-                  arg = args[i = n];
-                } else {
-                  log.warn("expected time zone offset specifier after option {}", argParts[0]);
-                  break;
-                }
-              }
+            case "-schema":
+            case "--avro-schema": {
+              final Supplier<Exception> missingAvroSchemaFilePath = () -> {
+                final String errmsg = option + " => is missing Avro Schema file path specification argument";
+                return new Exception(errmsg);
+              };
+              arg = (argParts.length > 1 ? argParts[1] : getNextArg.apply(++i).orElseThrow(missingAvroSchemaFilePath)).trim();
+              schemaFileOptn = Optional.of(validateFile.apply(new File(arg)));
+              break;
+            }
+            case "-tz":
+            case "--time-zone": {
+              final Supplier<Exception> missingTimeZoneSpecifier = () -> {
+                final String errmsg = option + " => is missing time zone offset specifier argument";
+                return new Exception(errmsg);
+              };
+              arg = (argParts.length > 1 ? argParts[1] : getNextArg.apply(++i).orElseThrow(missingTimeZoneSpecifier)).trim();
               ZoneOffset zoneOffset = null;
               try {
                 final int hoursOffset = Integer.parseInt(arg);
@@ -146,23 +203,12 @@ public class DataLoad {
                 System.exit(1); // return non-zero status to indicate program failure
               }
               try {
-                timeZoneIdOptn = Optional.of(ZoneId.of(zoneOffset != null ? zoneOffset.getId() : arg).normalized());
-              } catch (NumberFormatException | DateTimeException e) {
+                final ZoneId zoneId = ZoneId.of(zoneOffset != null ? zoneOffset.getId() : arg);
+                timeZoneIdOptn = Optional.of(zoneId.normalized());
+              } catch (DateTimeException e) {
                 log.error("invalid time zone offset:", e);
                 System.exit(1); // return non-zero status to indicate program failure
               }
-              break;
-            }
-            case "to-json": {
-              isExportSchemaToJson = true;
-              break;
-            }
-            case "from-json": {
-              isImportJsonToSchema = true;
-              break;
-            }
-            case "one-row-schema": {
-              isMakeOneRowSchema = true;
               break;
             }
             default: {
@@ -171,16 +217,14 @@ public class DataLoad {
           }
         } else {
           // assume is a file path argument
-          final File filePath = new File(arg);
-          validateFile.accept(filePath);
-          inputFiles.add(filePath);
+          inputFiles.add(validateFile.apply(new File(arg)));
         }
       }
 
       if (schemaFileOptn.isPresent()) {
         final File avroSchemaFile = schemaFileOptn.get();
         ValidateAvroSchema.validate(avroSchemaFile);
-        log.info("Avro schema file \"{}\" validated successfully", avroSchemaFile);
+        log.info("Avro schema file validated successfully{}\t\"{}\"", eol, avroSchemaFile);
       }
 
       if (!inputFiles.isEmpty()) {
@@ -238,7 +282,7 @@ public class DataLoad {
         System.exit(1);
       }
     } catch (Throwable e) {
-      log.error("program terminated due to exception:", e);
+      log.error(abortPrgErrMsg, e);
       System.exit(1); // return non-zero status to indicate program failure
     }
     log.info("program completion successful");
