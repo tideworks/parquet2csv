@@ -42,11 +42,10 @@ public class OneRowParquetSchema {
     this.inputFilePath = inputFile.toPath();
   }
 
-  public static void writeSchemaFile(final File inputFile, final String baseFileName) throws IOException {
+  public static void writeSchemaFile(final File inputFile, final String dirPath, final String baseFileName) throws IOException {
     final OneRowParquetSchema oneRowParquetSchema = new OneRowParquetSchema(inputFile);
     final Schema avroSchema = oneRowParquetSchema.extractAvroSchemaFromParquet();
     final String terminalID = oneRowParquetSchema.extractTerminalIDFromParquet();
-    final String dirPath = FileUtils.getParentDir(inputFile);
     oneRowParquetSchema.writeOneRowParquetSchemaFile(terminalID, avroSchema, dirPath, baseFileName);
   }
 
