@@ -13,14 +13,17 @@ import java.io.File;
 import java.util.function.Supplier;
 
 import static com.tideworks.data_load.DataLoad.getProgDirPath;
+import static com.tideworks.data_load.DataLoad.logBackXml;
 
+@SuppressWarnings("unused")
 public enum LoggingLevel {
   TRACE("trace"), DEBUG("debug"), INFO("info"), WARN("warn"), ERROR("error");
 
   private static final Object lockObj = new Object();
   private static LoggingLevel defaultLogLevel = INFO;
-  @SuppressWarnings("unused")
-  private String level;
+
+  @SuppressWarnings("FieldCanBeLocal")
+  private final String level;
   private static ch.qos.logback.classic.Level originalRootLevel;
 
   LoggingLevel(String level) {
@@ -49,7 +52,7 @@ public enum LoggingLevel {
   }
 
   public static Logger effectLoggingLevel(final Supplier<Logger> createLogger) {
-    String logbackCfgFileName = "logback.xml";
+    String logbackCfgFileName = logBackXml;
     File logbackCfgFile = new File(getProgDirPath(), logbackCfgFileName);
     if (!logbackCfgFile.exists()) {
       System.err.printf("LogBack config file \"%s\" not detected - defaulting to console logging", logbackCfgFileName);
@@ -59,6 +62,14 @@ public enum LoggingLevel {
     System.setProperty("program.directoryPath", getProgDirPath().toString());
     final ch.qos.logback.classic.Logger root = getRootLogger();
     originalRootLevel = root.getLevel();
+    root.setLevel(ch.qos.logback.classic.Level.toLevel(getLoggingVerbosity().toString()));
+    return createLogger.get();
+  }
+
+  public static Logger adjustLoggingLevel(final String level, final Supplier<Logger> createLogger) {
+    final LoggingLevel newLevel = LoggingLevel.valueOf(level.toUpperCase());
+    setLoggingVerbosity(newLevel);
+    final ch.qos.logback.classic.Logger root = getRootLogger();
     root.setLevel(ch.qos.logback.classic.Level.toLevel(getLoggingVerbosity().toString()));
     return createLogger.get();
   }
